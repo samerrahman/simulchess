@@ -175,9 +175,7 @@ function App() {
   if (!roomId) {
     return (
       <div className="lobby-container" style={{ margin: 'auto', padding: '4rem', maxWidth: '500px', width: '100%' }}>
-        <Swords size={48} style={{ marginBottom: '1rem', color: '#111' }} />
-        <h1 className="lobby-title" style={{ fontSize: '2rem', fontWeight: 600, color: '#111', marginBottom: '0.5rem' }}>SimulChess</h1>
-        <p style={{ color: '#666', marginBottom: '2.5rem' }}>Synchronous moves. Minimalist design.</p>
+        <h1 className="lobby-title" style={{ fontSize: '2rem', fontWeight: 600, color: '#111', marginBottom: '2.5rem' }}>SimulChess</h1>
         
         {loadingMsg && <div style={{display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'1rem', color:'#444'}}><Loader2 className="animate-spin" size={18}/> {loadingMsg}</div>}
         
