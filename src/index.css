@@ -166,18 +166,18 @@ body {
 }
 
 .game-container {
-  display: grid;
-  grid-template-columns: 1fr 320px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 2rem;
-  height: 100%;
+  padding: 2rem;
 }
 
 .board-area {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   width: 100%;
-  max-width: 80vh;
+  max-width: 600px;
   margin: 0 auto;
 }
 

@@ -142,13 +142,12 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
   }
 
   let statusText = "Waiting for Opponent to Join...";
-  if (gameState.status === 'playing') {
-    if (myStatus && enemyStatus) statusText = "Resolving...";
-    else if (myStatus) statusText = "Waiting for Opponent...";
-    else statusText = "Your Turn. Plan your move!";
-  } else if (gameState.status === 'w_won') statusText = "White Wins!";
-  else if (gameState.status === 'b_won') statusText = "Black Wins!";
-  else if (gameState.status === 'draw') statusText = "Draw! Double King Capture!";
+  try {
+    const lg = getLegalMoves(gameState.board, color);
+    statusText = `Debug: ${lg?.length} moves. Color: ${color}. spec: ${isSpectator}`;
+  } catch (e) {
+    statusText = `Debug ERROR: ${e.message}`;
+  }
 
   return (
     <div className="game-container">
@@ -157,6 +156,7 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
           <Chessboard 
             id="SimultaneousBoard"
             position={position}
+            boardWidth={600}
             boardOrientation={color === 'b' ? 'black' : 'white'}
             onPieceDrop={handlePieceDrop}
             onSquareClick={onSquareClick}
