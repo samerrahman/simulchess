@@ -107,23 +107,39 @@ function App() {
 
   async function handleFindPublic() {
     setLoadingMsg("Looking for a match...");
-    const queueRef = ref(db, 'queue');
-    const snap = await get(queueRef);
-    const topEntry = snap.val() ? Object.entries(snap.val())[0] : null;
-
-    if (topEntry) {
-      // Join existing game in queue
+    
+    // Attempt to pop a valid game from the queue
+    let targetGameId = null;
+    let assignedColor = 'spectator';
+    
+    while (!targetGameId) {
+      const queueRef = ref(db, 'queue');
+      const snap = await get(queueRef);
+      const queueObj = snap.val();
+      
+      if (!queueObj) break; // Queue is empty
+      
+      const topEntry = Object.entries(queueObj)[0];
       const [qKey, gameId] = topEntry;
-      await remove(ref(db, `queue/${qKey}`)); // pop from queue
-      setInputRoomId(gameId);
+      
+      // Pop it so no one else grabs it while we inspect
+      await remove(ref(db, `queue/${qKey}`));
       
       const gameSnap = await get(ref(db, `games/${gameId}`));
       if (gameSnap.exists()) {
-         let assignedColor = 'spectator';
          const data = gameSnap.val();
+         
+         // If BOTH players disconnected, data.players is empty. We discard this dead game.
+         if (!data.players || (!data.players.w && !data.players.b)) {
+            // Dead game. Loop again to find another.
+            continue;
+         }
+         
+         // Otherwise, we join it!
+         targetGameId = gameId;
          const updates = {};
-         if (!data.players?.w) { assignedColor = 'w'; updates[`players/w`] = userId; }
-         else if (!data.players?.b) { assignedColor = 'b'; updates[`players/b`] = userId; }
+         if (!data.players.w) { assignedColor = 'w'; updates[`players/w`] = userId; }
+         else if (!data.players.b) { assignedColor = 'b'; updates[`players/b`] = userId; }
          
          if (assignedColor !== 'spectator') {
             const fullPlayers = { ...data.players, [assignedColor]: userId };
@@ -132,16 +148,17 @@ function App() {
             }
             await update(ref(db, `games/${gameId}`), updates);
          }
-         setColor(assignedColor);
-         setRoomId(gameId);
-      } else {
-         // Fallback if game was deleted
-         handleCreatePublic();
       }
-    } else {
-      // Create new game and add to queue
-      handleCreatePublic();
     }
+
+    if (targetGameId) {
+      setColor(assignedColor);
+      setRoomId(targetGameId);
+    } else {
+      // If Queue was empty or all games were dead, make a new one!
+      await handleCreatePublic();
+    }
+    
     setLoadingMsg('');
   }
   
