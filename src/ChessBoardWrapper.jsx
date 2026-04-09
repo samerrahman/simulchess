@@ -46,12 +46,12 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
       const piece = gameState.board[sq];
       pos[sq] = `${piece.color}${piece.type.toUpperCase()}`;
     }
+    if (intendedMove) {
+      delete pos[intendedMove.from];
+      pos[intendedMove.to] = `${intendedMove.piece.color}${intendedMove.piece.type.toUpperCase()}`;
+    }
     return pos;
-  }, [gameState.board]);
-
-  const customArrows = intendedMove 
-    ? [[intendedMove.from, intendedMove.to, 'rgba(50, 50, 50, 0.4)']]
-    : [];
+  }, [gameState.board, intendedMove]);
 
   useEffect(() => {
     if (!myStatus && intendedMove) {
@@ -65,6 +65,8 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
     const sourcePiece = gameState.board[from];
     if (!sourcePiece || sourcePiece.color !== color) return false;
 
+    // If there's an intended move, getLegalMoves should probably evaluate from the original board state
+    // since simultaneous moves are resolved cleanly from the base turn state.
     const legal = getLegalMoves(gameState.board, color);
     const isLegal = legal.find(m => m.from === from && m.to === to && (!m.promotion || m.promotion === promotion));
     
@@ -73,7 +75,7 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
       setIntendedMove({ from, to, promotion: prm, piece: sourcePiece });
       setSelectedSquare(null);
       setPossibleMoves([]);
-      return true; // We don't want the visual piece to actually stay, we just snap it back
+      return true; // Allow the visual drop
     }
     
     // Shake animation
@@ -83,8 +85,8 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
   }
 
   function handlePieceDrop(from, to, piece) {
-    tryMove(from, to);
-    return false; // Snap back, use arrows to show intent!
+    const success = tryMove(from, to);
+    return success;
   }
 
   function onSquareClick(square) {
@@ -159,7 +161,6 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
             onPieceDrop={handlePieceDrop}
             onSquareClick={onSquareClick}
             customSquareStyles={customSquareStyles}
-            customArrows={customArrows}
             isDraggablePiece={({ piece }) => piece[0] === color && !myStatus && gameState.status === 'playing'}
             customDarkSquareStyle={{ backgroundColor: '#ced4da' }}
             customLightSquareStyle={{ backgroundColor: '#f8f9fa' }}
