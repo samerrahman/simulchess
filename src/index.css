@@ -177,7 +177,6 @@ body {
   justify-content: center;
   align-items: center;
   width: 100%;
-  aspect-ratio: 1;
   max-width: 80vh;
   margin: 0 auto;
 }

@@ -60,7 +60,7 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
   }, [myStatus]);
 
   function tryMove(from, to, promotion = 'q') {
-    if (isSpectator || gameState.status !== 'playing' || myStatus) return false;
+    if (isSpectator || myStatus) return false;
     
     const sourcePiece = gameState.board[from];
     if (!sourcePiece || sourcePiece.color !== color) return false;
@@ -90,7 +90,7 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
   }
 
   function onSquareClick(square) {
-    if (isSpectator || gameState.status !== 'playing' || myStatus) return;
+    if (isSpectator || myStatus) return;
 
     if (selectedSquare) {
       if (selectedSquare === square) {
@@ -161,7 +161,7 @@ export default function ChessBoardWrapper({ gameState, color, submitMove, roomId
             onPieceDrop={handlePieceDrop}
             onSquareClick={onSquareClick}
             customSquareStyles={customSquareStyles}
-            isDraggablePiece={({ piece }) => piece[0] === color && !myStatus && gameState.status === 'playing'}
+            isDraggablePiece={({ piece }) => piece[0] === color && !myStatus}
             customDarkSquareStyle={{ backgroundColor: '#ced4da' }}
             customLightSquareStyle={{ backgroundColor: '#f8f9fa' }}
             animationDuration={300}
