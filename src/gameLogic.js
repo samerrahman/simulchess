@@ -334,9 +334,9 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
     delete newBoard[blackRookMove.from];
   }
 
-  // Detect collisions
+  // Detect collisions: only same-square collision destroys both pieces
   const isSquareCollision = whiteTo && blackTo && whiteTo === blackTo;
-  const isSwapCollision = whiteTo && blackTo && whiteTo === blackFrom && blackTo === whiteFrom;
+  const isSwapPass = whiteTo && blackTo && whiteTo === blackFrom && blackTo === whiteFrom;
 
   function updateRightsForSquare(sq) {
     if (sq === 'e1') { rights.w.k = false; rights.w.q = false; }
@@ -368,19 +368,14 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
       square: whiteTo,
       message: `💥 Same-Square Collision on ${whiteTo}! White's ${pieceName(whitePieceObj)} and Black's ${pieceName(blackPieceObj)} annihilated each other!`
     });
-  } else if (isSwapCollision) {
-    capturedPieces.w.push(whitePieceObj);
-    capturedPieces.b.push(blackPieceObj);
-    delete newBoard[whiteTo];
-    delete newBoard[blackTo];
-
-    events.push({
-      type: 'collision',
-      subtype: 'swap',
-      squares: [whiteFrom, blackFrom],
-      message: `💥 Head-On Collision between ${whiteFrom} and ${blackFrom}! Both ${pieceName(whitePieceObj)} and ${pieceName(blackPieceObj)} destroyed in transit!`
-    });
   } else {
+    if (isSwapPass) {
+      events.push({
+        type: 'pass',
+        message: `🔄 White's ${pieceName(whitePieceObj)} and Black's ${pieceName(blackPieceObj)} bypassed each other in transit!`
+      });
+    }
+
     // White lands
     if (whitePieceObj && whiteTo) {
       const stationaryPiece = board[whiteTo];

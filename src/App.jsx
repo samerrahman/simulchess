@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Swords, Loader2, Play, Users, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import { Swords, Loader2, Play, Users, ArrowRight } from 'lucide-react';
 import GameArena from './GameArena';
 import { db } from './firebase';
 import { 
@@ -33,7 +33,7 @@ export default function App() {
   });
 
   // Join a room by ID and assign color
-  const joinRoomById = useCallback(async (targetRoomId) => {
+  const joinRoomById = useCallback(async (targetRoomId, shouldPushHistory = true) => {
     const cleanId = targetRoomId.trim().toUpperCase();
     if (!cleanId) return;
 
@@ -47,7 +47,6 @@ export default function App() {
       if (!snap.exists()) {
         setErrorMsg(`Room "${cleanId}" not found. Check the code and try again.`);
         setLoadingMsg('');
-        // Clean up URL if invalid
         window.history.replaceState({}, '', window.location.pathname);
         return;
       }
@@ -80,7 +79,9 @@ export default function App() {
 
       setColor(assignedColor);
       setRoomId(cleanId);
-      window.history.replaceState({}, '', `?room=${cleanId}`);
+      if (shouldPushHistory) {
+        window.history.pushState({ inGame: true, roomId: cleanId }, '', `?room=${cleanId}`);
+      }
     } catch (err) {
       console.error('Failed to join room:', err);
       setErrorMsg('Failed to join room: ' + err.message);
@@ -89,12 +90,33 @@ export default function App() {
     }
   }, [userId]);
 
+  // Handle browser Back / Forward buttons natively
+  useEffect(() => {
+    function handlePopState() {
+      const params = new URLSearchParams(window.location.search);
+      const roomParam = params.get('room');
+      if (!roomParam) {
+        // Navigated back to home/lobby
+        setRoomId('');
+        setColor(null);
+        setGameState(null);
+        setInputRoomId('');
+        setErrorMsg('');
+      } else if (roomParam !== roomId) {
+        joinRoomById(roomParam, false);
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [roomId, joinRoomById]);
+
   // Check URL query parameters on initial page mount (e.g. ?room=ABCDEF)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
     if (roomParam) {
-      joinRoomById(roomParam);
+      joinRoomById(roomParam, false);
     }
   }, [joinRoomById]);
 
@@ -147,7 +169,7 @@ export default function App() {
         setGameState(null);
         setRoomId('');
         setColor(null);
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.pushState({}, '', window.location.pathname);
       }
     });
 
@@ -167,7 +189,7 @@ export default function App() {
       await set(ref(db, `games/${newRoomId}`), initialGame);
       setColor('w');
       setRoomId(newRoomId);
-      window.history.replaceState({}, '', `?room=${newRoomId}`);
+      window.history.pushState({ inGame: true, roomId: newRoomId }, '', `?room=${newRoomId}`);
     } catch (err) {
       console.error(err);
       setErrorMsg("Failed to create room: " + err.message);
@@ -232,7 +254,7 @@ export default function App() {
       if (targetGameId) {
         setColor(assignedColor);
         setRoomId(targetGameId);
-        window.history.replaceState({}, '', `?room=${targetGameId}`);
+        window.history.pushState({ inGame: true, roomId: targetGameId }, '', `?room=${targetGameId}`);
       } else {
         // No match found in queue: Create a new public room and push to queue
         const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -245,7 +267,7 @@ export default function App() {
 
         setColor('w');
         setRoomId(newRoomId);
-        window.history.replaceState({}, '', `?room=${newRoomId}`);
+        window.history.pushState({ inGame: true, roomId: newRoomId }, '', `?room=${newRoomId}`);
       }
     } catch (err) {
       console.error(err);
@@ -259,7 +281,7 @@ export default function App() {
   function handleJoinSubmit(e) {
     e.preventDefault();
     if (!inputRoomId.trim()) return;
-    joinRoomById(inputRoomId);
+    joinRoomById(inputRoomId, true);
   }
 
   // Leave room and return to lobby
@@ -269,7 +291,7 @@ export default function App() {
     setGameState(null);
     setInputRoomId('');
     setErrorMsg('');
-    window.history.replaceState({}, '', window.location.pathname);
+    window.history.pushState({}, '', window.location.pathname);
   }
 
   // LOBBY VIEW
@@ -283,7 +305,7 @@ export default function App() {
             </div>
             <h1 className="lobby-title">SimulChess</h1>
             <p className="lobby-subtitle">
-              Real-time simultaneous multiplayer chess. Both players lock in their moves at the same second!
+              Real-time simultaneous multiplayer chess.
             </p>
           </div>
 
@@ -331,7 +353,7 @@ export default function App() {
               <input
                 type="text"
                 className="input-field join-input"
-                placeholder="Enter 6-char Room Code"
+                placeholder="Enter Room Code"
                 value={inputRoomId}
                 onChange={(e) => setInputRoomId(e.target.value.toUpperCase())}
                 maxLength={8}
@@ -347,21 +369,21 @@ export default function App() {
             </form>
           </div>
 
-          {/* Quick Rules / Instructions */}
+          {/* Quick Rules */}
           <div className="rules-section">
             <h3 className="rules-title">Simultaneous Rules</h3>
             <ul className="rules-list">
               <li>
-                <strong>💥 Same-Square Collisions:</strong> If both players move to the exact same square, both pieces are annihilated!
+                <strong>💥 Same-Square Collisions:</strong> If both players land on the exact same square, both pieces are annihilated.
               </li>
               <li>
-                <strong>⚡ Head-On Collisions:</strong> If two pieces swap squares (e.g. e4➔e5 and e5➔e4), both are destroyed in transit.
+                <strong>🔄 Bypassing:</strong> If two pieces pass each other towards each other's squares, both survive and reach their targets.
               </li>
               <li>
-                <strong>👑 King Capture Wins:</strong> Kings can be captured directly! There is no turn-based "check". Protect your King!
+                <strong>👑 King Capture Wins:</strong> Kings can be captured directly! Protect your King.
               </li>
               <li>
-                <strong>🔒 Simultaneous Lock-In:</strong> Pick a piece, stage your move, and lock in. Both moves execute at the exact same instant.
+                <strong>⚡ Instant Lock-In:</strong> Moving any piece locks in your turn immediately.
               </li>
             </ul>
           </div>

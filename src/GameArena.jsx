@@ -1,17 +1,16 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Swords, 
   Copy, 
   Check, 
   RotateCcw, 
   ArrowLeft, 
-  Zap, 
   Lock, 
-  Unlock, 
   Share2, 
   Trophy, 
   Skull, 
-  AlertTriangle 
+  AlertTriangle,
+  Undo2
 } from 'lucide-react';
 import { ref, update } from 'firebase/database';
 import { db } from './firebase';
@@ -24,11 +23,15 @@ import {
   pieceName 
 } from './gameLogic';
 
+const EMOJIS = ['👏', '😮', '💀', '🔥', '🤔', '🤝'];
+
 export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
   const [stagedInfo, setStagedInfo] = useState({ turn: gameState.turnCount || 1, move: null });
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [reactionCooldown, setReactionCooldown] = useState(0);
+  const [activeReaction, setActiveReaction] = useState(null);
 
   const isSpectator = color === 'spectator';
   const myColor = color;
@@ -38,7 +41,37 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
   const enemyStatus = !isSpectator && gameState.submitted ? !!gameState.submitted[enemyColor] : false;
 
   // Staged move is valid for the current turn count
-  const intendedMove = (stagedInfo.turn === (gameState.turnCount || 1)) ? stagedInfo.move : null;
+  const intendedMove = (myStatus && gameState.pendingMoves?.[myColor]) 
+    ? gameState.pendingMoves[myColor] 
+    : (stagedInfo.turn === (gameState.turnCount || 1) ? stagedInfo.move : null);
+
+  // Anti-spam reaction cooldown timer
+  useEffect(() => {
+    if (reactionCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setReactionCooldown(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [reactionCooldown]);
+
+  // Listen to emoji reactions from Firebase
+  useEffect(() => {
+    if (!gameState.reaction?.timestamp) return;
+    const reaction = gameState.reaction;
+    const age = Date.now() - reaction.timestamp;
+    if (age < 3500) {
+      const showTimer = setTimeout(() => {
+        setActiveReaction(reaction);
+      }, 10);
+      const hideTimer = setTimeout(() => {
+        setActiveReaction(null);
+      }, 2500);
+      return () => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+      };
+    }
+  }, [gameState.reaction]);
 
   // Board orientation
   const orientation = useMemo(() => {
@@ -123,34 +156,39 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
     roomId
   ]);
 
-  // Stage a move from the board
-  function handleStageMove(move) {
-    if (myStatus || gameState.status !== 'playing') return;
+  // Immediately lock in move on piece placement
+  async function handleMovePiece(move) {
+    if (myStatus || gameState.status !== 'playing' || !roomId || isSpectator) return;
     setStagedInfo({ turn: gameState.turnCount || 1, move });
-  }
-
-  function handleClearMove() {
-    setStagedInfo({ turn: gameState.turnCount || 1, move: null });
-  }
-
-  // Lock In Move
-  async function handleLockInMove() {
-    if (!intendedMove || myStatus || !roomId || isSpectator) return;
     await update(ref(db, `games/${roomId}`), {
-      [`pendingMoves/${myColor}`]: intendedMove,
+      [`pendingMoves/${myColor}`]: move,
       [`submitted/${myColor}`]: true
     });
   }
 
-  // Cancel / Change Move
-  async function handleChangeMove() {
-    if (!myStatus || !roomId || isSpectator) return;
-    // Only allow changing if other player hasn't locked in yet or turn not resolved
+  // Cancel / Undo Move before opponent submits
+  async function handleUndoMove() {
+    if (!myStatus || !roomId || isSpectator || enemyStatus) return;
+    setStagedInfo({ turn: gameState.turnCount || 1, move: null });
     await update(ref(db, `games/${roomId}`), {
       [`pendingMoves/${myColor}`]: null,
       [`submitted/${myColor}`]: false
     });
   }
+
+  // Send an emoji reaction
+  const handleSendReaction = useCallback(async (emoji) => {
+    if (reactionCooldown > 0 || !roomId || isSpectator) return;
+    setReactionCooldown(3); // 3 second cooldown
+    const ts = Date.now();
+    await update(ref(db, `games/${roomId}`), {
+      reaction: {
+        emoji,
+        sender: myColor,
+        timestamp: ts
+      }
+    });
+  }, [reactionCooldown, roomId, isSpectator, myColor]);
 
   // Copy room link
   function handleCopyLink() {
@@ -185,7 +223,6 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
     setStagedInfo({ turn: 1, move: null });
   }
 
-  // Status message calculation
   const isGameOver = ['w_won', 'b_won', 'draw'].includes(gameState.status);
   const isWaiting = gameState.status === 'waiting';
 
@@ -217,7 +254,7 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
 
           <button className="btn btn-secondary btn-sm" onClick={handleCopyLink} title="Copy shareable link">
             {copiedLink ? <Check size={16} className="copied-check" /> : <Share2 size={16} />}
-            <span>{copiedLink ? 'Copied Link!' : 'Invite Friend'}</span>
+            <span>{copiedLink ? 'Copied' : 'Invite'}</span>
           </button>
 
           <button 
@@ -237,8 +274,16 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
           {/* Opponent Strip (Top) */}
           <div className={`player-strip opponent-strip ${enemyStatus ? 'player-locked' : ''}`}>
             <div className="player-meta">
-              <div className={`player-avatar avatar-${enemyColor}`}>
-                {enemyColor === 'w' ? '♔' : '♚'}
+              <div className="avatar-wrapper">
+                <div className={`player-avatar avatar-${enemyColor}`}>
+                  {enemyColor === 'w' ? '♔' : '♚'}
+                </div>
+                {/* Floating Reaction from Opponent */}
+                {activeReaction && activeReaction.sender === enemyColor && (
+                  <div className="floating-reaction-badge">
+                    {activeReaction.emoji}
+                  </div>
+                )}
               </div>
               <div className="player-details">
                 <span className="player-name">
@@ -249,7 +294,7 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
                     'Waiting to connect...'
                   ) : enemyStatus ? (
                     <span className="status-locked-tag">
-                      <Lock size={12} /> Move Locked In
+                      <Lock size={12} /> Locked In
                     </span>
                   ) : (
                     <span className="status-thinking-tag">
@@ -278,7 +323,7 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
               orientation={orientation}
               legalMoves={legalMoves}
               intendedMove={intendedMove}
-              onStageMove={handleStageMove}
+              onStageMove={handleMovePiece}
               isLocked={myStatus}
               disabled={gameState.status !== 'playing'}
               lastEvents={gameState.lastEvents || []}
@@ -288,8 +333,16 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
           {/* You Strip (Bottom) */}
           <div className={`player-strip self-strip ${myStatus ? 'player-locked' : ''}`}>
             <div className="player-meta">
-              <div className={`player-avatar avatar-${myColor}`}>
-                {myColor === 'w' ? '♔' : myColor === 'b' ? '♚' : '👁️'}
+              <div className="avatar-wrapper">
+                <div className={`player-avatar avatar-${myColor}`}>
+                  {myColor === 'w' ? '♔' : myColor === 'b' ? '♚' : '👁️'}
+                </div>
+                {/* Floating Reaction from Self */}
+                {activeReaction && activeReaction.sender === myColor && (
+                  <div className="floating-reaction-badge">
+                    {activeReaction.emoji}
+                  </div>
+                )}
               </div>
               <div className="player-details">
                 <span className="player-name">
@@ -297,17 +350,13 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
                 </span>
                 <span className="player-status-text">
                   {isSpectator ? (
-                    'Spectating live match'
+                    'Spectating match'
                   ) : myStatus ? (
                     <span className="status-locked-tag">
                       <Lock size={12} /> Move Locked In
                     </span>
-                  ) : intendedMove ? (
-                    <span className="status-staged-tag">
-                      <Zap size={12} /> Ready to lock in
-                    </span>
                   ) : (
-                    'Your turn - pick a move'
+                    'Your turn — drag or click a piece'
                   )}
                 </span>
               </div>
@@ -322,6 +371,29 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
               ))}
             </div>
           </div>
+
+          {/* Reaction Bar & Quick Controls */}
+          {!isSpectator && gameState.status === 'playing' && (
+            <div className="reactions-bar">
+              <span className="reactions-label">React:</span>
+              <div className="emoji-list">
+                {EMOJIS.map(emoji => (
+                  <button
+                    key={emoji}
+                    className="btn-emoji"
+                    disabled={reactionCooldown > 0}
+                    onClick={() => handleSendReaction(emoji)}
+                    title={`Send ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              {reactionCooldown > 0 && (
+                <span className="cooldown-pill">{reactionCooldown}s</span>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Right Column: Actions, Events & Turn History */}
@@ -333,7 +405,7 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
                 <Share2 size={28} />
               </div>
               <h3>Waiting for Opponent</h3>
-              <p>Share this link or room code with a friend to play simultaneously online in real time!</p>
+              <p>Share this link or code with a friend to play simultaneously in real time.</p>
               <div className="waiting-copy-box">
                 <input 
                   type="text" 
@@ -350,59 +422,40 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
             </div>
           )}
 
-          {/* Turn Action Controls (When Playing) */}
+          {/* Stable Fixed-Height Action Control Card (No UI shifts) */}
           {gameState.status === 'playing' && !isSpectator && (
-            <div className="action-control-card">
-              <h3 className="action-card-title">Turn #{gameState.turnCount || 1} Controls</h3>
-              
-              {!myStatus ? (
-                <div className="stage-actions-box">
-                  {intendedMove ? (
-                    <div className="staged-details">
-                      <div className="staged-preview-info">
-                        <span className="staged-label">Planned Move:</span>
-                        <span className="staged-move-text">
-                          {pieceName(intendedMove.piece)} {intendedMove.from.toUpperCase()} ➔ {intendedMove.to.toUpperCase()}
-                          {intendedMove.promotion ? ` (${intendedMove.promotion.toUpperCase()})` : ''}
-                        </span>
-                      </div>
-                      <div className="staged-buttons">
-                        <button className="btn btn-lock-in" onClick={handleLockInMove}>
-                          <Zap size={18} /> Lock In Move
-                        </button>
-                        <button className="btn btn-secondary" onClick={handleClearMove}>
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="no-move-prompt">
-                      <p>Click or drag one of your pieces to preview your simultaneous move.</p>
-                      <span className="prompt-hint">Both players move at the exact same second!</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="locked-in-box">
-                  <div className="locked-in-header">
-                    <Lock size={20} className="lock-icon-pulse" />
-                    <div>
-                      <h4>Move Locked In!</h4>
-                      <p className="locked-sub">
-                        {enemyStatus 
-                          ? 'Both players locked in! Resolving simultaneous turn...' 
-                          : 'Waiting for opponent to lock in their move...'}
-                      </p>
-                    </div>
-                  </div>
+            <div className="action-control-card fixed-action-card">
+              <div className="action-card-header">
+                <span className="action-card-title">Turn #{gameState.turnCount || 1} Status</span>
+                {myStatus && !enemyStatus && (
+                  <button className="btn btn-secondary btn-xs undo-btn" onClick={handleUndoMove}>
+                    <Undo2 size={13} /> Undo Move
+                  </button>
+                )}
+              </div>
 
-                  {!enemyStatus && (
-                    <button className="btn btn-secondary btn-sm change-move-btn" onClick={handleChangeMove}>
-                      <Unlock size={14} /> Change Move
-                    </button>
-                  )}
-                </div>
-              )}
+              <div className="action-status-content">
+                {!myStatus ? (
+                  <div className="prompt-status-row">
+                    <span className="dot-indicator pulse-blue"></span>
+                    <span className="status-label">Your turn: pick a move</span>
+                  </div>
+                ) : (
+                  <div className="prompt-status-row">
+                    <span className="dot-indicator pulse-green"></span>
+                    <span className="status-label">
+                      {enemyStatus
+                        ? "Both locked in — resolving turn..."
+                        : "Move locked in — waiting for opponent..."}
+                    </span>
+                  </div>
+                )}
+                {intendedMove && (
+                  <div className="staged-mini-badge">
+                    {pieceName(intendedMove.piece)} {intendedMove.from.toUpperCase()} ➔ {intendedMove.to.toUpperCase()}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
