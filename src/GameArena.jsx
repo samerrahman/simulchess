@@ -383,15 +383,12 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
                     className="btn-emoji"
                     disabled={reactionCooldown > 0}
                     onClick={() => handleSendReaction(emoji)}
-                    title={`Send ${emoji}`}
+                    title={reactionCooldown > 0 ? 'Wait a moment...' : `Send ${emoji}`}
                   >
                     {emoji}
                   </button>
                 ))}
               </div>
-              {reactionCooldown > 0 && (
-                <span className="cooldown-pill">{reactionCooldown}s</span>
-              )}
             </div>
           )}
         </section>
