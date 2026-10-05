@@ -1,23 +1,129 @@
-import { useEffect, useState } from 'react';
-import { Swords, Loader2, Play, Users } from 'lucide-react';
-import ChessBoardWrapper from './ChessBoardWrapper';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Swords, Loader2, Play, Users, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import GameArena from './GameArena';
 import { db } from './firebase';
-import { ref, get, set, update, onValue, remove, push, onDisconnect } from 'firebase/database';
-import { createInitialBoard } from './gameLogic';
+import { 
+  ref, 
+  get, 
+  set, 
+  update, 
+  onValue, 
+  remove, 
+  push, 
+  onDisconnect 
+} from 'firebase/database';
+import { createInitialGameState } from './gameLogic';
 
-function App() {
+export default function App() {
   const [roomId, setRoomId] = useState('');
   const [inputRoomId, setInputRoomId] = useState('');
-  const [color, setColor] = useState(null);
+  const [color, setColor] = useState(null); // 'w' | 'b' | 'spectator'
   const [gameState, setGameState] = useState(null);
   const [loadingMsg, setLoadingMsg] = useState('');
-  const [userId] = useState(() => Math.random().toString(36).substring(2, 10));
+  const [errorMsg, setErrorMsg] = useState('');
+  
+  // Persistent anonymous player ID across page reloads in this browser tab
+  const [userId] = useState(() => {
+    let saved = sessionStorage.getItem('simulchess_user_id');
+    if (!saved) {
+      saved = 'user_' + Math.random().toString(36).substring(2, 9);
+      sessionStorage.setItem('simulchess_user_id', saved);
+    }
+    return saved;
+  });
 
+  // Join a room by ID and assign color
+  const joinRoomById = useCallback(async (targetRoomId) => {
+    const cleanId = targetRoomId.trim().toUpperCase();
+    if (!cleanId) return;
+
+    setLoadingMsg(`Connecting to room ${cleanId}...`);
+    setErrorMsg('');
+
+    try {
+      const roomRef = ref(db, `games/${cleanId}`);
+      const snap = await get(roomRef);
+
+      if (!snap.exists()) {
+        setErrorMsg(`Room "${cleanId}" not found. Check the code and try again.`);
+        setLoadingMsg('');
+        // Clean up URL if invalid
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      }
+
+      const data = snap.val();
+      const players = data.players || {};
+
+      let assignedColor = 'spectator';
+
+      // Check if user is already registered in this room
+      if (players.w === userId) {
+        assignedColor = 'w';
+      } else if (players.b === userId) {
+        assignedColor = 'b';
+      } else if (!players.w) {
+        assignedColor = 'w';
+      } else if (!players.b) {
+        assignedColor = 'b';
+      }
+
+      const updates = {};
+      if (assignedColor !== 'spectator') {
+        updates[`players/${assignedColor}`] = userId;
+        const nextPlayers = { ...players, [assignedColor]: userId };
+        if (nextPlayers.w && nextPlayers.b && data.status === 'waiting') {
+          updates['status'] = 'playing';
+        }
+        await update(roomRef, updates);
+      }
+
+      setColor(assignedColor);
+      setRoomId(cleanId);
+      window.history.replaceState({}, '', `?room=${cleanId}`);
+    } catch (err) {
+      console.error('Failed to join room:', err);
+      setErrorMsg('Failed to join room: ' + err.message);
+    } finally {
+      setLoadingMsg('');
+    }
+  }, [userId]);
+
+  // Check URL query parameters on initial page mount (e.g. ?room=ABCDEF)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get('room');
+    if (roomParam) {
+      joinRoomById(roomParam);
+    }
+  }, [joinRoomById]);
+
+  // Claim empty seat
+  const claimSeat = useCallback(async (seatColor) => {
+    if (!roomId) return;
+    try {
+      await update(ref(db, `games/${roomId}/players`), { [seatColor]: userId });
+      setColor(seatColor);
+
+      // Check if both players joined to start game
+      const snap = await get(ref(db, `games/${roomId}`));
+      if (snap.exists()) {
+        const d = snap.val();
+        if (d.players?.w && d.players?.b && d.status === 'waiting') {
+          await update(ref(db, `games/${roomId}`), { status: 'playing' });
+        }
+      }
+    } catch (e) {
+      console.error('Error claiming seat:', e);
+    }
+  }, [roomId, userId]);
+
+  // Listen to game updates once roomId is set
   useEffect(() => {
     if (!roomId) return;
     const gameRef = ref(db, `games/${roomId}`);
-    
-    // Set up disconnect cleanup
+
+    // Set up disconnect cleanup for player seat
     if (color && (color === 'w' || color === 'b')) {
       const playerRef = ref(db, `games/${roomId}/players/${color}`);
       onDisconnect(playerRef).remove();
@@ -27,218 +133,263 @@ function App() {
       const data = snapshot.val();
       if (data) {
         setGameState(data);
-        if (data.status === 'playing' && color === 'spectator') {
-          // If we somehow joined but missing a color, check if we can claim one
+
+        // If spectator and a seat opens up, take it
+        if (color === 'spectator' && data.players) {
           if (!data.players.w && data.players.b !== userId) {
-            updateColor('w');
+            claimSeat('w');
           } else if (!data.players.b && data.players.w !== userId) {
-            updateColor('b');
+            claimSeat('b');
           }
         }
+      } else {
+        // Room was deleted
+        setGameState(null);
+        setRoomId('');
+        setColor(null);
+        window.history.replaceState({}, '', window.location.pathname);
       }
     });
-    
+
     return () => unsub();
-  }, [roomId, color, userId]);
+  }, [roomId, color, userId, claimSeat]);
 
-  async function updateColor(newColor) {
-    setColor(newColor);
-    await update(ref(db, `games/${roomId}/players`), { [newColor]: userId });
-    
-    // If both players are now in, start game
-    const snap = await get(ref(db, `games/${roomId}/players`));
-    const players = snap.val();
-    if (players && players.w && players.b) {
-      const stateSnap = await get(ref(db, `games/${roomId}/status`));
-      if (stateSnap.val() === 'waiting') {
-        await update(ref(db, `games/${roomId}`), { status: 'playing' });
-      }
-    }
-  }
-
+  // Create Private Room
   async function handleCreatePrivate() {
     setLoadingMsg("Creating room...");
-    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    
-    const initialData = {
-      board: createInitialBoard(),
-      players: { w: userId },
-      status: 'waiting',
-      pendingMoves: { w: null, b: null },
-      submitted: { w: false, b: false }
-    };
-    
-    await set(ref(db, `games/${newRoomId}`), initialData);
-    setColor('w');
-    setRoomId(newRoomId);
-    setLoadingMsg('');
-  }
+    setErrorMsg('');
+    try {
+      const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const initialGame = createInitialGameState();
+      initialGame.players = { w: userId, b: null };
+      initialGame.status = 'waiting';
 
-  async function handleJoinPrivate(e) {
-    if (e) e.preventDefault();
-    const id = inputRoomId.trim().toUpperCase();
-    if (!id) return;
-    
-    setLoadingMsg("Joining...");
-    const snap = await get(ref(db, `games/${id}`));
-    if (snap.exists()) {
-      const data = snap.val();
-      let assignedColor = 'spectator';
-      
-      const updates = {};
-      if (!data.players?.w) { assignedColor = 'w'; updates[`players/w`] = userId; }
-      else if (!data.players?.b) { assignedColor = 'b'; updates[`players/b`] = userId; }
-      
-      if (assignedColor !== 'spectator') {
-        const fullPlayers = { ...data.players, [assignedColor]: userId };
-        if (fullPlayers.w && fullPlayers.b && data.status === 'waiting') {
-          updates['status'] = 'playing';
-        }
-        await update(ref(db, `games/${id}`), updates);
-      }
-      
-      setColor(assignedColor);
-      setRoomId(id);
-    } else {
-      alert("Room not found");
+      await set(ref(db, `games/${newRoomId}`), initialGame);
+      setColor('w');
+      setRoomId(newRoomId);
+      window.history.replaceState({}, '', `?room=${newRoomId}`);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Failed to create room: " + err.message);
+    } finally {
+      setLoadingMsg('');
     }
-    setLoadingMsg('');
   }
 
+  // Find Public Match
   async function handleFindPublic() {
     setLoadingMsg("Looking for a match...");
-    
-    // Attempt to pop a valid game from the queue
-    let targetGameId = null;
-    let assignedColor = 'spectator';
-    
-    while (!targetGameId) {
+    setErrorMsg('');
+
+    try {
+      let targetGameId = null;
+      let assignedColor = 'spectator';
+
       const queueRef = ref(db, 'queue');
       const snap = await get(queueRef);
       const queueObj = snap.val();
-      
-      if (!queueObj) break; // Queue is empty
-      
-      const topEntry = Object.entries(queueObj)[0];
-      const [qKey, gameId] = topEntry;
-      
-      // Pop it so no one else grabs it while we inspect
-      await remove(ref(db, `queue/${qKey}`));
-      
-      const gameSnap = await get(ref(db, `games/${gameId}`));
-      if (gameSnap.exists()) {
-         const data = gameSnap.val();
-         
-         // If BOTH players disconnected, data.players is empty. We discard this dead game.
-         if (!data.players || (!data.players.w && !data.players.b)) {
-            // Dead game. Loop again to find another.
-            continue;
-         }
-         
-         // Otherwise, we join it!
-         targetGameId = gameId;
-         const updates = {};
-         if (!data.players.w) { assignedColor = 'w'; updates[`players/w`] = userId; }
-         else if (!data.players.b) { assignedColor = 'b'; updates[`players/b`] = userId; }
-         
-         if (assignedColor !== 'spectator') {
-            const fullPlayers = { ...data.players, [assignedColor]: userId };
-            if (fullPlayers.w && fullPlayers.b && data.status === 'waiting') {
-               updates['status'] = 'playing';
+
+      if (queueObj) {
+        for (const [qKey, queuedId] of Object.entries(queueObj)) {
+          // Remove from queue first
+          await remove(ref(db, `queue/${qKey}`));
+
+          const gameSnap = await get(ref(db, `games/${queuedId}`));
+          if (gameSnap.exists()) {
+            const data = gameSnap.val();
+            // Discard dead games where both players abandoned
+            if (!data.players || (!data.players.w && !data.players.b)) {
+              continue;
             }
-            await update(ref(db, `games/${gameId}`), updates);
-         }
+
+            // Assign open seat
+            targetGameId = queuedId;
+            const updates = {};
+            if (!data.players.w && data.players.b !== userId) {
+              assignedColor = 'w';
+              updates['players/w'] = userId;
+            } else if (!data.players.b && data.players.w !== userId) {
+              assignedColor = 'b';
+              updates['players/b'] = userId;
+            } else if (data.players.w === userId) {
+              assignedColor = 'w';
+            } else if (data.players.b === userId) {
+              assignedColor = 'b';
+            }
+
+            if (assignedColor !== 'spectator') {
+              const fullPlayers = { ...data.players, [assignedColor]: userId };
+              if (fullPlayers.w && fullPlayers.b && data.status === 'waiting') {
+                updates['status'] = 'playing';
+              }
+              await update(ref(db, `games/${queuedId}`), updates);
+            }
+            break;
+          }
+        }
       }
+
+      if (targetGameId) {
+        setColor(assignedColor);
+        setRoomId(targetGameId);
+        window.history.replaceState({}, '', `?room=${targetGameId}`);
+      } else {
+        // No match found in queue: Create a new public room and push to queue
+        const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const initialGame = createInitialGameState();
+        initialGame.players = { w: userId, b: null };
+        initialGame.status = 'waiting';
+
+        await set(ref(db, `games/${newRoomId}`), initialGame);
+        await push(ref(db, 'queue'), newRoomId);
+
+        setColor('w');
+        setRoomId(newRoomId);
+        window.history.replaceState({}, '', `?room=${newRoomId}`);
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Matchmaking error: " + err.message);
+    } finally {
+      setLoadingMsg('');
     }
-
-    if (targetGameId) {
-      setColor(assignedColor);
-      setRoomId(targetGameId);
-    } else {
-      // If Queue was empty or all games were dead, make a new one!
-      await handleCreatePublic();
-    }
-    
-    setLoadingMsg('');
-  }
-  
-  async function handleCreatePublic() {
-    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const initialData = {
-      board: createInitialBoard(),
-      players: { w: userId },
-      status: 'waiting',
-      pendingMoves: { w: false, b: false }, // Use bool for presence, store actual moves in private node if needed, but for simplicity we store directly and rely on UI to hide it
-      submitted: { w: false, b: false }
-    };
-    await set(ref(db, `games/${newRoomId}`), initialData);
-    await push(ref(db, 'queue'), newRoomId);
-    setColor('w');
-    setRoomId(newRoomId);
   }
 
-  async function submitMove(move) {
-    if (!roomId || !color || color === 'spectator') return;
-    
-    const gameRef = ref(db, `games/${roomId}`);
-    
-    // We only update our move and our submitted status
-    await update(gameRef, {
-      [`pendingMoves/${color}`]: move,
-      [`submitted/${color}`]: true
-    });
+  // Join Room from input form
+  function handleJoinSubmit(e) {
+    e.preventDefault();
+    if (!inputRoomId.trim()) return;
+    joinRoomById(inputRoomId);
   }
 
+  // Leave room and return to lobby
+  function handleLeaveRoom() {
+    setRoomId('');
+    setColor(null);
+    setGameState(null);
+    setInputRoomId('');
+    setErrorMsg('');
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
+  // LOBBY VIEW
   if (!roomId) {
     return (
-      <div className="lobby-container" style={{ margin: 'auto', padding: '4rem', maxWidth: '500px', width: '100%' }}>
-        <h1 className="lobby-title" style={{ fontSize: '2rem', fontWeight: 600, color: '#111', marginBottom: '2.5rem' }}>SimulChess</h1>
-        
-        {loadingMsg && <div style={{display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'1rem', color:'#444'}}><Loader2 className="animate-spin" size={18}/> {loadingMsg}</div>}
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-          <button className="btn btn-primary" onClick={handleFindPublic} disabled={!!loadingMsg}>
-            <Play size={18} /> Find Public Match
-          </button>
-          
-          <div className="divider">or</div>
-          
-          <button className="btn btn-secondary" onClick={handleCreatePrivate} disabled={!!loadingMsg}>
-            <Users size={18} /> Create Private Room
-          </button>
-          
-          <form onSubmit={handleJoinPrivate} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="Room Code"
-              value={inputRoomId}
-              onChange={(e) => setInputRoomId(e.target.value.toUpperCase())}
-              style={{ flexGrow: 1 }}
-              maxLength={6}
+      <div className="lobby-wrapper">
+        <div className="lobby-card">
+          <div className="lobby-header">
+            <div className="lobby-logo-badge">
+              <Swords size={36} className="lobby-icon" />
+            </div>
+            <h1 className="lobby-title">SimulChess</h1>
+            <p className="lobby-subtitle">
+              Real-time simultaneous multiplayer chess. Both players lock in their moves at the same second!
+            </p>
+          </div>
+
+          {loadingMsg && (
+            <div className="alert-box alert-info">
+              <Loader2 className="animate-spin" size={18} />
+              <span>{loadingMsg}</span>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="alert-box alert-error">
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          <div className="lobby-buttons">
+            <button 
+              className="btn btn-primary btn-lobby" 
+              onClick={handleFindPublic} 
               disabled={!!loadingMsg}
-            />
-            <button type="submit" className="btn btn-secondary" disabled={!!loadingMsg || !inputRoomId.trim()}>
-              Join
+            >
+              <Play size={20} />
+              <div className="btn-text-block">
+                <span className="btn-main-text">Find Match</span>
+                <span className="btn-sub-text">Join matchmaking queue</span>
+              </div>
             </button>
-          </form>
+
+            <button 
+              className="btn btn-secondary btn-lobby" 
+              onClick={handleCreatePrivate} 
+              disabled={!!loadingMsg}
+            >
+              <Users size={20} />
+              <div className="btn-text-block">
+                <span className="btn-main-text">Create Room</span>
+                <span className="btn-sub-text">Generate a private invite link</span>
+              </div>
+            </button>
+
+            <div className="divider">or join with code</div>
+
+            <form onSubmit={handleJoinSubmit} className="join-form">
+              <input
+                type="text"
+                className="input-field join-input"
+                placeholder="Enter 6-char Room Code"
+                value={inputRoomId}
+                onChange={(e) => setInputRoomId(e.target.value.toUpperCase())}
+                maxLength={8}
+                disabled={!!loadingMsg}
+              />
+              <button 
+                type="submit" 
+                className="btn btn-primary join-btn" 
+                disabled={!!loadingMsg || !inputRoomId.trim()}
+              >
+                Join <ArrowRight size={16} />
+              </button>
+            </form>
+          </div>
+
+          {/* Quick Rules / Instructions */}
+          <div className="rules-section">
+            <h3 className="rules-title">Simultaneous Rules</h3>
+            <ul className="rules-list">
+              <li>
+                <strong>💥 Same-Square Collisions:</strong> If both players move to the exact same square, both pieces are annihilated!
+              </li>
+              <li>
+                <strong>⚡ Head-On Collisions:</strong> If two pieces swap squares (e.g. e4➔e5 and e5➔e4), both are destroyed in transit.
+              </li>
+              <li>
+                <strong>👑 King Capture Wins:</strong> Kings can be captured directly! There is no turn-based "check". Protect your King!
+              </li>
+              <li>
+                <strong>🔒 Simultaneous Lock-In:</strong> Pick a piece, stage your move, and lock in. Both moves execute at the exact same instant.
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     );
   }
 
+  // LOADING GAME VIEW
   if (!gameState) {
-    return <div style={{ margin: 'auto', display: 'flex', gap: '1rem', color: '#333' }}><Loader2 size={24} className="animate-spin" /> Loading game...</div>;
+    return (
+      <div className="lobby-wrapper">
+        <div className="loading-card">
+          <Loader2 size={36} className="animate-spin text-accent" />
+          <h2>Entering Room {roomId}...</h2>
+          <p>Connecting to Firebase Realtime Database</p>
+        </div>
+      </div>
+    );
   }
 
+  // ACTIVE GAME ARENA VIEW
   return (
-    <ChessBoardWrapper 
-      gameState={gameState} 
-      color={color} 
-      submitMove={submitMove}
+    <GameArena
+      gameState={gameState}
+      color={color}
       roomId={roomId}
+      onLeaveRoom={handleLeaveRoom}
     />
   );
 }
-
-export default App;
