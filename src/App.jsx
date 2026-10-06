@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Swords, Loader2, Play, Users, ArrowRight } from 'lucide-react';
+import { Swords, Loader2, Play, Users, ArrowRight, HelpCircle } from 'lucide-react';
 import GameArena from './GameArena';
+import HowToPlayModal from './HowToPlayModal';
 import { db } from './firebase';
 import { 
   ref, 
@@ -21,6 +22,7 @@ export default function App() {
   const [gameState, setGameState] = useState(null);
   const [loadingMsg, setLoadingMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
   
   // Persistent anonymous player ID across page reloads in this browser tab
   const [userId] = useState(() => {
@@ -369,25 +371,20 @@ export default function App() {
             </form>
           </div>
 
-          {/* Quick Rules */}
-          <div className="rules-section">
-            <h3 className="rules-title">Simultaneous Rules</h3>
-            <ul className="rules-list">
-              <li>
-                <strong>💥 Same-Square Collisions:</strong> If both players land on the exact same square, both pieces are annihilated.
-              </li>
-              <li>
-                <strong>🔄 Bypassing:</strong> If two pieces pass each other towards each other's squares, both survive and reach their targets.
-              </li>
-              <li>
-                <strong>👑 King Capture Wins:</strong> Kings can be captured directly! Protect your King.
-              </li>
-              <li>
-                <strong>⚡ Instant Lock-In:</strong> Moving any piece locks in your turn immediately.
-              </li>
-            </ul>
+          <div className="lobby-footer-actions">
+            <button 
+              className="btn btn-secondary btn-how-to-play" 
+              onClick={() => setShowHowToPlay(true)}
+            >
+              <HelpCircle size={17} /> How to Play
+            </button>
           </div>
         </div>
+
+        <HowToPlayModal 
+          isOpen={showHowToPlay} 
+          onClose={() => setShowHowToPlay(false)} 
+        />
       </div>
     );
   }

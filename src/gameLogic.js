@@ -366,7 +366,7 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
       type: 'collision',
       subtype: 'square',
       square: whiteTo,
-      message: `💥 Same-Square Collision on ${whiteTo}! White's ${pieceName(whitePieceObj)} and Black's ${pieceName(blackPieceObj)} annihilated each other!`
+      message: `Same-Square Collision on ${whiteTo}! White's ${pieceName(whitePieceObj)} and Black's ${pieceName(blackPieceObj)} annihilated each other!`
     });
   } else {
     if (isSwapPass) {

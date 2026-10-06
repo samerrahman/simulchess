@@ -10,8 +10,10 @@ import {
   Trophy, 
   Skull, 
   AlertTriangle,
-  Undo2
+  Undo2,
+  HelpCircle
 } from 'lucide-react';
+import HowToPlayModal from './HowToPlayModal';
 import { ref, update } from 'firebase/database';
 import { db } from './firebase';
 import NativeChessboard from './NativeChessboard';
@@ -32,6 +34,7 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [reactionCooldown, setReactionCooldown] = useState(0);
   const [activeReaction, setActiveReaction] = useState(null);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   const isSpectator = color === 'spectator';
   const myColor = color;
@@ -255,6 +258,14 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
           <button className="btn btn-secondary btn-sm" onClick={handleCopyLink} title="Copy shareable link">
             {copiedLink ? <Check size={16} className="copied-check" /> : <Share2 size={16} />}
             <span>{copiedLink ? 'Copied' : 'Invite'}</span>
+          </button>
+
+          <button 
+            className="btn-icon" 
+            onClick={() => setShowHowToPlay(true)} 
+            title="How to Play"
+          >
+            <HelpCircle size={18} />
           </button>
 
           <button 
@@ -547,6 +558,11 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
           </div>
         </div>
       )}
+
+      <HowToPlayModal 
+        isOpen={showHowToPlay} 
+        onClose={() => setShowHowToPlay(false)} 
+      />
     </div>
   );
 }

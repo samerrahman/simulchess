@@ -193,11 +193,6 @@ export default function NativeChessboard({
                 {isTargetEnemy && (
                   <div className="legal-capture-ring" />
                 )}
-
-                {/* Collision Badge */}
-                {hasCollision && (
-                  <div className="collision-boom-badge">💥</div>
-                )}
               </div>
             );
           })
