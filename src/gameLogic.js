@@ -366,13 +366,13 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
       type: 'collision',
       subtype: 'square',
       square: whiteTo,
-      message: `Same-Square Collision on ${whiteTo}! White's ${pieceName(whitePieceObj)} and Black's ${pieceName(blackPieceObj)} annihilated each other!`
+      message: `Collision on ${whiteTo}: ${pieceName(whitePieceObj)} and ${pieceName(blackPieceObj)} destroyed`
     });
   } else {
     if (isSwapPass) {
       events.push({
         type: 'pass',
-        message: `🔄 White's ${pieceName(whitePieceObj)} and Black's ${pieceName(blackPieceObj)} bypassed each other in transit!`
+        message: `Pass: ${pieceName(whitePieceObj)} & ${pieceName(blackPieceObj)} swapped squares`
       });
     }
 
@@ -387,14 +387,7 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
           square: whiteTo,
           piece: whitePieceObj,
           captured: stationaryPiece,
-          message: `⚔️ White's ${pieceName(whitePieceObj)} captured Black's ${pieceName(stationaryPiece)} on ${whiteTo}.`
-        });
-      } else if (whiteTo === blackFrom) {
-        events.push({
-          type: 'evasion',
-          by: 'b',
-          square: whiteTo,
-          message: `💨 Black's piece on ${whiteTo} moved away just in time!`
+          message: `White captures ${pieceName(stationaryPiece)} on ${whiteTo}`
         });
       }
 
@@ -408,7 +401,7 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
             type: 'capture',
             by: 'w',
             square: epSq,
-            message: `⚔️ White executed en passant capture on ${epSq}!`
+            message: `White en passant on ${epSq}`
           });
         }
       }
@@ -427,14 +420,7 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
           square: blackTo,
           piece: blackPieceObj,
           captured: stationaryPiece,
-          message: `⚔️ Black's ${pieceName(blackPieceObj)} captured White's ${pieceName(stationaryPiece)} on ${blackTo}.`
-        });
-      } else if (blackTo === whiteFrom) {
-        events.push({
-          type: 'evasion',
-          by: 'w',
-          square: blackTo,
-          message: `💨 White's piece on ${blackTo} moved away just in time!`
+          message: `Black captures ${pieceName(stationaryPiece)} on ${blackTo}`
         });
       }
 
@@ -448,7 +434,7 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
             type: 'capture',
             by: 'b',
             square: epSq,
-            message: `⚔️ Black executed en passant capture on ${epSq}!`
+            message: `Black en passant on ${epSq}`
           });
         }
       }

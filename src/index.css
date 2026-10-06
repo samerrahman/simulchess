@@ -982,60 +982,14 @@ body {
   100% { transform: scale(0.8) translateY(-30px); opacity: 0; }
 }
 
-/* Combat Events */
-.combat-events-card {
-  background-color: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  padding: 1rem 1.25rem;
-}
 
-.combat-card-title {
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
-}
 
-.events-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.combat-event-row {
-  font-size: 0.85rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
-}
-
-.event-collision {
-  background-color: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
-  font-weight: 600;
-}
-
-.event-capture {
-  background-color: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #fcd34d;
-}
-
-.event-evasion {
-  background-color: rgba(59, 130, 246, 0.15);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  color: #93c5fd;
-}
-
-/* History Card */
+/* Turn Log */
 .history-card {
   background-color: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 0.75rem;
-  padding: 1.25rem;
+  padding: 1.1rem 1.25rem;
   box-shadow: var(--shadow-md);
 }
 
@@ -1049,7 +1003,7 @@ body {
 }
 
 .history-scroll {
-  max-height: 220px;
+  max-height: 280px;
   overflow-y: auto;
 }
 
@@ -1060,33 +1014,91 @@ body {
   padding: 1rem 0;
 }
 
-.history-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
-.history-table th {
-  color: var(--text-muted);
-  text-align: left;
-  padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
+.history-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.375rem;
+  background-color: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.history-table td {
-  padding: 0.45rem 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+.history-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .hist-turn {
+  font-size: 0.78rem;
+  font-weight: 700;
   color: var(--text-muted);
-  width: 20%;
+  min-width: 28px;
 }
 
-.hist-move {
+.hist-moves {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.hist-move-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-family: monospace;
+  font-size: 0.88rem;
   font-weight: 600;
+  color: #e2e8f0;
+}
+
+.color-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  line-height: 1;
+}
+
+.white-tag {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.black-tag {
+  background-color: #334155;
+  color: #f8fafc;
+}
+
+.history-row-events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-left: 2rem;
+}
+
+.event-note {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.event-note-collision {
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+.event-note-capture {
+  color: #fcd34d;
+}
+
+.event-note-pass {
   color: #93c5fd;
 }
 

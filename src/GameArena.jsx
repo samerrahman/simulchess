@@ -467,48 +467,35 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
             </div>
           )}
 
-          {/* Latest Events & Collision Alert */}
-          {gameState.lastEvents && gameState.lastEvents.length > 0 && (
-            <div className="combat-events-card">
-              <h4 className="combat-card-title">Last Turn Results</h4>
-              <div className="events-list">
-                {gameState.lastEvents.map((evt, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`combat-event-row event-${evt.type}`}
-                  >
-                    <span className="event-msg">{evt.message}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Move History Log */}
+          {/* Turn Log */}
           <div className="history-card">
             <h4 className="history-card-title">Turn Log</h4>
             <div className="history-scroll">
               {(!gameState.history || gameState.history.length === 0) ? (
                 <div className="empty-history">Moves will appear here after each turn.</div>
               ) : (
-                <table className="history-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>White</th>
-                      <th>Black</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gameState.history.map((entry, idx) => (
-                      <tr key={idx}>
-                        <td className="hist-turn">{entry.turn}</td>
-                        <td className="hist-move">{entry.whiteMove}</td>
-                        <td className="hist-move">{entry.blackMove}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="history-list">
+                  {gameState.history.map((entry, idx) => (
+                    <div key={idx} className="history-row">
+                      <div className="history-row-main">
+                        <span className="hist-turn">T{entry.turn}</span>
+                        <div className="hist-moves">
+                          <span className="hist-move-item"><span className="color-tag white-tag">W</span> {entry.whiteMove}</span>
+                          <span className="hist-move-item"><span className="color-tag black-tag">B</span> {entry.blackMove}</span>
+                        </div>
+                      </div>
+                      {entry.events && entry.events.length > 0 && (
+                        <div className="history-row-events">
+                          {entry.events.map((evt, eIdx) => (
+                            <span key={eIdx} className={`event-note event-note-${evt.type}`}>
+                              {evt.message}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
