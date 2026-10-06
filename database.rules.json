@@ -1,0 +1,19 @@
+{
+  "rules": {
+    "games": {
+      "$roomId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "queue": {
+      ".read": true,
+      ".write": true
+    },
+    "users": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["elo"]
+    }
+  }
+}

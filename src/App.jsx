@@ -1,7 +1,20 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Swords, Loader2, Play, Users, ArrowRight, HelpCircle } from 'lucide-react';
+import { 
+  Swords, 
+  Loader2, 
+  Play, 
+  Users, 
+  ArrowRight, 
+  HelpCircle, 
+  Trophy, 
+  Edit2, 
+  Check, 
+  Sparkles, 
+  X 
+} from 'lucide-react';
 import GameArena from './GameArena';
 import HowToPlayModal from './HowToPlayModal';
+import LeaderboardModal from './LeaderboardModal';
 import { db } from './firebase';
 import { 
   ref, 
@@ -14,6 +27,7 @@ import {
   onDisconnect 
 } from 'firebase/database';
 import { createInitialGameState } from './gameLogic';
+import { getOrCreateProfile, updateUsername } from './eloService';
 
 export default function App() {
   const [roomId, setRoomId] = useState('');
@@ -23,6 +37,14 @@ export default function App() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+
+  // Player profile state
+  const [profile, setProfile] = useState(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameVal, setEditNameVal] = useState('');
+  const [isSearchingMatch, setIsSearchingMatch] = useState(false);
+  const [queueKey, setQueueKey] = useState(null);
   
   // Persistent anonymous player ID across page reloads in this browser tab
   const [userId] = useState(() => {
@@ -33,6 +55,26 @@ export default function App() {
     }
     return saved;
   });
+
+  // Load and refresh player profile
+  const refreshProfile = useCallback(async () => {
+    const prof = await getOrCreateProfile(userId);
+    setProfile(prof);
+    setEditNameVal(prof.username);
+  }, [userId]);
+
+  useEffect(() => {
+    refreshProfile();
+  }, [refreshProfile]);
+
+  // Save new username
+  async function handleSaveUsername(e) {
+    if (e) e.preventDefault();
+    if (!editNameVal.trim()) return;
+    await updateUsername(userId, editNameVal.trim());
+    setIsEditingName(false);
+    refreshProfile();
+  }
 
   // Join a room by ID and assign color
   const joinRoomById = useCallback(async (targetRoomId, shouldPushHistory = true) => {
@@ -72,6 +114,15 @@ export default function App() {
       const updates = {};
       if (assignedColor !== 'spectator') {
         updates[`players/${assignedColor}`] = userId;
+        // Also attach player metadata (name, elo) for live in-game display
+        const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+        const myElo = profile?.elo || 1200;
+        updates[`playerMeta/${assignedColor}`] = {
+          userId,
+          username: myName,
+          elo: myElo
+        };
+
         const nextPlayers = { ...players, [assignedColor]: userId };
         if (nextPlayers.w && nextPlayers.b && data.status === 'waiting') {
           updates['status'] = 'playing';
@@ -90,7 +141,7 @@ export default function App() {
     } finally {
       setLoadingMsg('');
     }
-  }, [userId]);
+  }, [userId, profile]);
 
   // Handle browser Back / Forward buttons natively
   useEffect(() => {
@@ -104,6 +155,7 @@ export default function App() {
         setGameState(null);
         setInputRoomId('');
         setErrorMsg('');
+        setIsSearchingMatch(false);
       } else if (roomParam !== roomId) {
         joinRoomById(roomParam, false);
       }
@@ -126,7 +178,13 @@ export default function App() {
   const claimSeat = useCallback(async (seatColor) => {
     if (!roomId) return;
     try {
-      await update(ref(db, `games/${roomId}/players`), { [seatColor]: userId });
+      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+      const myElo = profile?.elo || 1200;
+
+      await update(ref(db, `games/${roomId}`), {
+        [`players/${seatColor}`]: userId,
+        [`playerMeta/${seatColor}`]: { userId, username: myName, elo: myElo }
+      });
       setColor(seatColor);
 
       // Check if both players joined to start game
@@ -140,7 +198,7 @@ export default function App() {
     } catch (e) {
       console.error('Error claiming seat:', e);
     }
-  }, [roomId, userId]);
+  }, [roomId, userId, profile]);
 
   // Listen to game updates once roomId is set
   useEffect(() => {
@@ -185,7 +243,14 @@ export default function App() {
     try {
       const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const initialGame = createInitialGameState();
+      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+      const myElo = profile?.elo || 1200;
+
       initialGame.players = { w: userId, b: null };
+      initialGame.playerMeta = {
+        w: { userId, username: myName, elo: myElo },
+        b: null
+      };
       initialGame.status = 'waiting';
 
       await set(ref(db, `games/${newRoomId}`), initialGame);
@@ -202,12 +267,15 @@ export default function App() {
 
   // Find Public Match
   async function handleFindPublic() {
-    setLoadingMsg("Looking for a match...");
+    setIsSearchingMatch(true);
+    setLoadingMsg("Finding match...");
     setErrorMsg('');
 
     try {
       let targetGameId = null;
       let assignedColor = 'spectator';
+      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+      const myElo = profile?.elo || 1200;
 
       const queueRef = ref(db, 'queue');
       const snap = await get(queueRef);
@@ -221,7 +289,7 @@ export default function App() {
           const gameSnap = await get(ref(db, `games/${queuedId}`));
           if (gameSnap.exists()) {
             const data = gameSnap.val();
-            // Discard dead games where both players abandoned
+            // Discard dead games
             if (!data.players || (!data.players.w && !data.players.b)) {
               continue;
             }
@@ -232,9 +300,11 @@ export default function App() {
             if (!data.players.w && data.players.b !== userId) {
               assignedColor = 'w';
               updates['players/w'] = userId;
+              updates['playerMeta/w'] = { userId, username: myName, elo: myElo };
             } else if (!data.players.b && data.players.w !== userId) {
               assignedColor = 'b';
               updates['players/b'] = userId;
+              updates['playerMeta/b'] = { userId, username: myName, elo: myElo };
             } else if (data.players.w === userId) {
               assignedColor = 'w';
             } else if (data.players.b === userId) {
@@ -256,26 +326,48 @@ export default function App() {
       if (targetGameId) {
         setColor(assignedColor);
         setRoomId(targetGameId);
+        setIsSearchingMatch(false);
         window.history.pushState({ inGame: true, roomId: targetGameId }, '', `?room=${targetGameId}`);
       } else {
-        // No match found in queue: Create a new public room and push to queue
+        // No match found in queue: Create a new room and add to queue
         const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
         const initialGame = createInitialGameState();
         initialGame.players = { w: userId, b: null };
+        initialGame.playerMeta = {
+          w: { userId, username: myName, elo: myElo },
+          b: null
+        };
         initialGame.status = 'waiting';
 
         await set(ref(db, `games/${newRoomId}`), initialGame);
-        await push(ref(db, 'queue'), newRoomId);
+        const newQueueRef = await push(ref(db, 'queue'), newRoomId);
+        setQueueKey(newQueueRef.key);
 
         setColor('w');
         setRoomId(newRoomId);
+        setIsSearchingMatch(false);
         window.history.pushState({ inGame: true, roomId: newRoomId }, '', `?room=${newRoomId}`);
       }
     } catch (err) {
       console.error(err);
       setErrorMsg("Matchmaking error: " + err.message);
+      setIsSearchingMatch(false);
     } finally {
       setLoadingMsg('');
+    }
+  }
+
+  // Cancel Matchmaking
+  async function handleCancelMatchmaking() {
+    setIsSearchingMatch(false);
+    setLoadingMsg('');
+    if (queueKey) {
+      try {
+        await remove(ref(db, `queue/${queueKey}`));
+      } catch (e) {
+        console.error(e);
+      }
+      setQueueKey(null);
     }
   }
 
@@ -293,6 +385,8 @@ export default function App() {
     setGameState(null);
     setInputRoomId('');
     setErrorMsg('');
+    setIsSearchingMatch(false);
+    refreshProfile();
     window.history.pushState({}, '', window.location.pathname);
   }
 
@@ -301,6 +395,57 @@ export default function App() {
     return (
       <div className="lobby-wrapper">
         <div className="lobby-card">
+          {/* Top Bar inside Lobby: Profile & Leaderboard trigger */}
+          <div className="lobby-top-bar">
+            {profile && (
+              <div className="user-profile-badge">
+                <div className="user-profile-main">
+                  {isEditingName ? (
+                    <form onSubmit={handleSaveUsername} className="edit-name-form">
+                      <input 
+                        type="text" 
+                        value={editNameVal} 
+                        onChange={(e) => setEditNameVal(e.target.value)}
+                        maxLength={18}
+                        className="input-field input-xs"
+                        autoFocus
+                      />
+                      <button type="submit" className="btn-icon btn-save-name" title="Save">
+                        <Check size={14} />
+                      </button>
+                      <button type="button" className="btn-icon" onClick={() => setIsEditingName(false)} title="Cancel">
+                        <X size={14} />
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="profile-name-tag" onClick={() => setIsEditingName(true)} title="Click to rename">
+                      <span className="profile-username">{profile.username}</span>
+                      <Edit2 size={12} className="edit-icon-subtle" />
+                    </div>
+                  )}
+                  <div className="profile-stats-row">
+                    <span className="profile-elo-pill">
+                      <Sparkles size={11} className="text-amber" />
+                      {profile.elo} Elo
+                    </span>
+                    <span className="profile-record-pill">
+                      {profile.wins}W - {profile.losses}L - {profile.draws}D
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button 
+              className="btn btn-secondary btn-sm leaderboard-btn" 
+              onClick={() => setShowLeaderboard(true)}
+              title="View Hall of Fame Leaderboard"
+            >
+              <Trophy size={16} className="trophy-gold" />
+              <span>Leaderboard</span>
+            </button>
+          </div>
+
           <div className="lobby-header">
             <div className="lobby-logo-badge">
               <Swords size={36} className="lobby-icon" />
@@ -315,6 +460,11 @@ export default function App() {
             <div className="alert-box alert-info">
               <Loader2 className="animate-spin" size={18} />
               <span>{loadingMsg}</span>
+              {isSearchingMatch && (
+                <button className="btn btn-secondary btn-xs btn-cancel-queue" onClick={handleCancelMatchmaking}>
+                  Cancel
+                </button>
+              )}
             </div>
           )}
 
@@ -333,7 +483,7 @@ export default function App() {
               <Play size={20} />
               <div className="btn-text-block">
                 <span className="btn-main-text">Find Match</span>
-                <span className="btn-sub-text">Join matchmaking queue</span>
+                <span className="btn-sub-text">Join rated matchmaking queue</span>
               </div>
             </button>
 
@@ -385,6 +535,12 @@ export default function App() {
           isOpen={showHowToPlay} 
           onClose={() => setShowHowToPlay(false)} 
         />
+
+        <LeaderboardModal 
+          isOpen={showLeaderboard}
+          onClose={() => setShowLeaderboard(false)}
+          currentUserId={userId}
+        />
       </div>
     );
   }
@@ -408,6 +564,8 @@ export default function App() {
       gameState={gameState}
       color={color}
       roomId={roomId}
+      userId={userId}
+      userProfile={profile}
       onLeaveRoom={handleLeaveRoom}
     />
   );

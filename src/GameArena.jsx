@@ -11,7 +11,10 @@ import {
   Skull, 
   AlertTriangle,
   Undo2,
-  HelpCircle
+  HelpCircle,
+  TrendingUp,
+  TrendingDown,
+  Minus
 } from 'lucide-react';
 import HowToPlayModal from './HowToPlayModal';
 import { ref, update } from 'firebase/database';
@@ -24,10 +27,17 @@ import {
   createInitialGameState, 
   pieceName 
 } from './gameLogic';
+import { recordMatchOutcome, calculateEloDelta } from './eloService';
 
 const EMOJIS = ['👏', '😮', '💀', '🔥', '🤔', '🤝'];
 
-export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
+export default function GameArena({ 
+  gameState, 
+  color, 
+  roomId, 
+  userProfile, 
+  onLeaveRoom 
+}) {
   const [stagedInfo, setStagedInfo] = useState({ turn: gameState.turnCount || 1, move: null });
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -35,6 +45,9 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
   const [reactionCooldown, setReactionCooldown] = useState(0);
   const [activeReaction, setActiveReaction] = useState(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+
+  // Elo post-game calculation record
+  const [eloResult, setEloResult] = useState(null);
 
   const isSpectator = color === 'spectator';
   const myColor = color;
@@ -59,43 +72,47 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
 
   // Listen to emoji reactions from Firebase
   useEffect(() => {
-    if (!gameState.reaction?.timestamp) return;
-    const reaction = gameState.reaction;
-    const age = Date.now() - reaction.timestamp;
-    if (age < 3500) {
-      const showTimer = setTimeout(() => {
-        setActiveReaction(reaction);
-      }, 10);
-      const hideTimer = setTimeout(() => {
-        setActiveReaction(null);
-      }, 2500);
-      return () => {
-        clearTimeout(showTimer);
-        clearTimeout(hideTimer);
-      };
+    if (gameState.reaction && gameState.reaction.timestamp) {
+      const now = Date.now();
+      if (now - gameState.reaction.timestamp < 3500) {
+        const reactionTimer = setTimeout(() => {
+          setActiveReaction(gameState.reaction);
+        }, 0);
+        const clearTimer = setTimeout(() => {
+          setActiveReaction(null);
+        }, 3000);
+        return () => {
+          clearTimeout(reactionTimer);
+          clearTimeout(clearTimer);
+        };
+      }
     }
   }, [gameState.reaction]);
 
   // Board orientation
   const orientation = useMemo(() => {
-    if (isFlipped) {
-      return myColor === 'b' ? 'white' : 'black';
-    }
+    if (isFlipped) return myColor === 'b' ? 'white' : 'black';
     return myColor === 'b' ? 'black' : 'white';
   }, [isFlipped, myColor]);
 
-  // Compute legal moves for current player
+  // Compute legal moves
   const legalMoves = useMemo(() => {
-    if (isSpectator || !gameState.board || gameState.status !== 'playing' || myStatus) {
-      return [];
-    }
+    if (isSpectator || myStatus || gameState.status !== 'playing') return [];
     return getLegalMoves(
-      gameState.board, 
-      myColor, 
-      gameState.castlingRights, 
+      gameState.board || {},
+      myColor,
+      gameState.castlingRights,
       gameState.enPassantTarget
     );
-  }, [gameState.board, gameState.status, gameState.castlingRights, gameState.enPassantTarget, myColor, isSpectator, myStatus]);
+  }, [
+    isSpectator, 
+    myStatus, 
+    gameState.status, 
+    gameState.board, 
+    myColor, 
+    gameState.castlingRights, 
+    gameState.enPassantTarget
+  ]);
 
   // Master turn resolution when both moves are submitted
   useEffect(() => {
@@ -159,6 +176,58 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
     roomId
   ]);
 
+  // Handle Game Over Elo Updates (Calculated once and synchronized across both clients)
+  useEffect(() => {
+    const isFinished = ['w_won', 'b_won', 'draw'].includes(gameState.status);
+    if (!isFinished) return;
+
+    // If room already stored the calculated elo results, show them
+    if (gameState.eloSummary) {
+      const summaryTimer = setTimeout(() => {
+        setEloResult(gameState.eloSummary);
+      }, 0);
+      return () => clearTimeout(summaryTimer);
+    }
+
+    // Process once by the primary resolver
+    const isPrimaryResolver = myColor === 'w' || (myColor === 'b' && !gameState.players?.w);
+    const whiteId = gameState.players?.w;
+    const blackId = gameState.players?.b;
+
+    if (isPrimaryResolver && whiteId && blackId && !gameState.eloProcessed) {
+      // Mark as processed in room to prevent double-invocations
+      update(ref(db, `games/${roomId}`), { eloProcessed: true });
+
+      recordMatchOutcome(whiteId, blackId, gameState.status).then((summary) => {
+        if (summary) {
+          const wMeta = gameState.playerMeta?.w;
+          const bMeta = gameState.playerMeta?.b;
+          const fullSummary = {
+            ...summary,
+            prevWhiteElo: wMeta?.elo || 1200,
+            prevBlackElo: bMeta?.elo || 1200
+          };
+          update(ref(db, `games/${roomId}`), { eloSummary: fullSummary });
+          setEloResult(fullSummary);
+        }
+      });
+    } else if (whiteId && blackId && !eloResult) {
+      // Spectator or secondary client preview while database syncs
+      const outcomeVal = gameState.status === 'w_won' ? 1 : gameState.status === 'b_won' ? 0 : 0.5;
+      const wRating = gameState.playerMeta?.w?.elo || 1200;
+      const bRating = gameState.playerMeta?.b?.elo || 1200;
+      const preview = calculateEloDelta(wRating, bRating, outcomeVal);
+      const previewTimer = setTimeout(() => {
+        setEloResult({
+          ...preview,
+          prevWhiteElo: wRating,
+          prevBlackElo: bRating
+        });
+      }, 0);
+      return () => clearTimeout(previewTimer);
+    }
+  }, [gameState.status, gameState.eloSummary, gameState.eloProcessed, gameState.players, gameState.playerMeta, myColor, roomId, eloResult]);
+
   // Immediately lock in move on piece placement
   async function handleMovePiece(move) {
     if (myStatus || gameState.status !== 'playing' || !roomId || isSpectator) return;
@@ -211,6 +280,13 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
   // Restart / Rematch
   async function handleRematch() {
     const initial = createInitialGameState();
+    // Keep updated playerMeta with new Elo ratings
+    const updatedMeta = { ...gameState.playerMeta };
+    if (eloResult) {
+      if (updatedMeta.w) updatedMeta.w.elo = eloResult.newWhiteElo;
+      if (updatedMeta.b) updatedMeta.b.elo = eloResult.newBlackElo;
+    }
+
     await update(ref(db, `games/${roomId}`), {
       board: initial.board,
       castlingRights: initial.castlingRights,
@@ -221,9 +297,13 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
       pendingMoves: { w: null, b: null },
       capturedPieces: { w: [], b: [] },
       lastEvents: [],
-      history: []
+      history: [],
+      eloProcessed: false,
+      eloSummary: null,
+      playerMeta: updatedMeta
     });
     setStagedInfo({ turn: 1, move: null });
+    setEloResult(null);
   }
 
   const isGameOver = ['w_won', 'b_won', 'draw'].includes(gameState.status);
@@ -231,6 +311,23 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
 
   const myCaptured = (gameState.capturedPieces && gameState.capturedPieces[enemyColor]) || [];
   const enemyCaptured = (gameState.capturedPieces && gameState.capturedPieces[myColor]) || [];
+
+  // Player metadata (display names & Elo)
+  const whiteMeta = gameState.playerMeta?.w;
+  const blackMeta = gameState.playerMeta?.b;
+
+  const opponentMeta = enemyColor === 'w' ? whiteMeta : blackMeta;
+  const selfMeta = myColor === 'w' ? whiteMeta : blackMeta;
+
+  const opponentDisplayName = opponentMeta?.username || (enemyColor === 'w' ? 'White' : 'Black');
+  const opponentElo = opponentMeta?.elo || 1200;
+
+  const myDisplayName = selfMeta?.username || (userProfile?.username || (myColor === 'w' ? 'White' : 'Black'));
+  const myElo = selfMeta?.elo || (userProfile?.elo || 1200);
+
+  // Calculate my Elo change for modal
+  const myDelta = eloResult ? (myColor === 'w' ? eloResult.whiteDelta : eloResult.blackDelta) : 0;
+  const myNewElo = eloResult ? (myColor === 'w' ? eloResult.newWhiteElo : eloResult.newBlackElo) : myElo;
 
   return (
     <div className="game-arena-layout">
@@ -297,9 +394,14 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
                 )}
               </div>
               <div className="player-details">
-                <span className="player-name">
-                  Opponent ({enemyColor === 'w' ? 'White' : 'Black'})
-                </span>
+                <div className="player-name-line">
+                  <span className="player-name">
+                    {opponentDisplayName}
+                  </span>
+                  <span className="player-elo-badge">
+                    {opponentElo}
+                  </span>
+                </div>
                 <span className="player-status-text">
                   {isWaiting ? (
                     'Waiting to connect...'
@@ -356,9 +458,16 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
                 )}
               </div>
               <div className="player-details">
-                <span className="player-name">
-                  You ({myColor === 'w' ? 'White' : myColor === 'b' ? 'Black' : 'Spectator'})
-                </span>
+                <div className="player-name-line">
+                  <span className="player-name">
+                    {isSpectator ? 'You (Spectator)' : myDisplayName}
+                  </span>
+                  {!isSpectator && (
+                    <span className="player-elo-badge">
+                      {myElo}
+                    </span>
+                  )}
+                </div>
                 <span className="player-status-text">
                   {isSpectator ? (
                     'Spectating match'
@@ -478,14 +587,18 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
                   {gameState.history.map((entry, idx) => (
                     <div key={idx} className="history-row">
                       <div className="history-row-main">
-                        <span className="hist-turn">T{entry.turn}</span>
-                        <div className="hist-moves">
-                          <span className="hist-move-item"><span className="color-tag white-tag">W</span> {entry.whiteMove}</span>
-                          <span className="hist-move-item"><span className="color-tag black-tag">B</span> {entry.blackMove}</span>
+                        <span className="turn-number-tag">#{entry.turn}</span>
+                        <div className="moves-pair">
+                          <span className="history-move white-move">
+                            <span className="mini-icon">♔</span> {entry.whiteMove}
+                          </span>
+                          <span className="history-move black-move">
+                            <span className="mini-icon">♚</span> {entry.blackMove}
+                          </span>
                         </div>
                       </div>
                       {entry.events && entry.events.length > 0 && (
-                        <div className="history-row-events">
+                        <div className="events-sublist">
                           {entry.events.map((evt, eIdx) => (
                             <span key={eIdx} className={`event-note event-note-${evt.type}`}>
                               {evt.message}
@@ -502,7 +615,7 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
         </section>
       </main>
 
-      {/* Game Over Modal */}
+      {/* Game Over Modal with Elo Adjustment Display */}
       {isGameOver && (
         <div className="modal-backdrop">
           <div className="game-over-modal">
@@ -522,8 +635,8 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
               {gameState.status === 'draw'
                 ? 'Game Draw!'
                 : gameState.status === 'w_won'
-                ? 'White Wins!'
-                : 'Black Wins!'}
+                ? `${whiteMeta?.username || 'White'} Wins!`
+                : `${blackMeta?.username || 'Black'} Wins!`}
             </h2>
 
             <p className="modal-subtitle">
@@ -533,6 +646,33 @@ export default function GameArena({ gameState, color, roomId, onLeaveRoom }) {
                 ? 'White captured Black\'s King!'
                 : 'Black captured White\'s King!'}
             </p>
+
+            {/* Elo Rating Delta Card */}
+            {!isSpectator && eloResult && (
+              <div className="modal-elo-box">
+                <span className="elo-change-title">Rating Adjustment</span>
+                <div className="elo-change-row">
+                  <div className={`elo-delta-pill ${myDelta > 0 ? 'elo-plus' : myDelta < 0 ? 'elo-minus' : 'elo-even'}`}>
+                    {myDelta > 0 ? (
+                      <>
+                        <TrendingUp size={16} /> +{myDelta}
+                      </>
+                    ) : myDelta < 0 ? (
+                      <>
+                        <TrendingDown size={16} /> {myDelta}
+                      </>
+                    ) : (
+                      <>
+                        <Minus size={16} /> 0
+                      </>
+                    )}
+                  </div>
+                  <div className="elo-calc-text">
+                    New Rating: <strong>{myNewElo}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="modal-actions">
               <button className="btn btn-primary btn-lg" onClick={handleRematch}>
