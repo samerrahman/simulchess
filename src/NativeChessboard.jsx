@@ -37,14 +37,14 @@ export default function NativeChessboard({
 
     lastTurnAnimatedRef.current = lastMoves.turn;
 
-    // Trigger piece movement animation for 1.2 seconds
+    // Trigger clean LERP glide animation for 300ms
     const startTimer = setTimeout(() => {
       setAnimatedMoves(lastMoves.moves);
     }, 0);
 
     const endTimer = setTimeout(() => {
       setAnimatedMoves([]);
-    }, 1200);
+    }, 300);
 
     return () => {
       clearTimeout(startTimer);
@@ -212,7 +212,6 @@ export default function NativeChessboard({
 
             // Check if this square is the destination of an active animated move
             const anim = animatedMoves.find(m => m.to === square);
-            const animPieceType = anim ? anim.piece?.type : null;
             const offset = anim ? getMoveOffset(anim.from, anim.to) : null;
 
             return (
@@ -250,7 +249,7 @@ export default function NativeChessboard({
                   <div
                     className={`piece-container ${canDrag ? 'piece-draggable' : ''} ${
                       isDestOfIntended ? 'piece-staged-preview' : ''
-                    } ${anim ? `anim-piece anim-${animPieceType || 'default'}` : ''}`}
+                    } ${anim ? 'anim-piece' : ''}`}
                     style={
                       anim && offset
                         ? {
