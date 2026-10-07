@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ChessPiece } from './ChessPiece';
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -20,6 +20,9 @@ export default function NativeChessboard({
   const [draggedSquare, setDraggedSquare] = useState(null);
   const [animatedMoves, setAnimatedMoves] = useState([]);
 
+  // Store the last turn number that was animated to prevent re-running animations
+  const lastTurnAnimatedRef = useRef(lastMoves?.turn || 0);
+
   const isWhiteOrientation = orientation === 'white';
   const displayRanks = isWhiteOrientation ? [...RANKS].reverse() : [...RANKS];
   const displayFiles = isWhiteOrientation ? [...FILES] : [...FILES].reverse();
@@ -27,9 +30,12 @@ export default function NativeChessboard({
   // Active square is either dragged or selected
   const activeSquare = draggedSquare || selectedSquare;
 
-  // Track animations when new lastMoves arrives
+  // Track animations ONLY when a genuinely NEW turn's lastMoves arrives
   useEffect(() => {
     if (!lastMoves || !lastMoves.moves || lastMoves.moves.length === 0) return;
+    if (lastMoves.turn <= lastTurnAnimatedRef.current) return;
+
+    lastTurnAnimatedRef.current = lastMoves.turn;
 
     // Trigger piece movement animation for 1.2 seconds
     const startTimer = setTimeout(() => {
