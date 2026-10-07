@@ -29,6 +29,8 @@ import AuthModal from './AuthModal';
 import FriendsModal from './FriendsModal';
 import ProfilePage from './ProfilePage';
 import SettingsPage from './SettingsPage';
+import LeaderboardPage from './LeaderboardPage';
+import FriendsPage from './FriendsPage';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { 
@@ -738,23 +740,16 @@ export default function App() {
             </button>
 
             <button 
-              className="nav-link-btn"
-              onClick={() => setShowLeaderboard(true)}
+              className={`nav-link-btn ${navTab === 'leaderboard' ? 'active' : ''}`}
+              onClick={() => setNavTab('leaderboard')}
             >
               <Trophy size={16} className="text-amber" />
               <span>Leaderboard</span>
             </button>
 
             <button 
-              className="nav-link-btn"
-              onClick={() => {
-                if (!hasChosenName) {
-                  setAuthModalMode('choose_name');
-                  setShowAuthModal(true);
-                } else {
-                  setShowFriendsModal(true);
-                }
-              }}
+              className={`nav-link-btn ${navTab === 'friends' ? 'active' : ''}`}
+              onClick={() => setNavTab('friends')}
             >
               <Users size={16} />
               <span>Friends</span>
@@ -827,6 +822,34 @@ export default function App() {
         {/* VIEW: SETTINGS */}
         {navTab === 'settings' && (
           <SettingsPage onNavigateToPlay={() => setNavTab('play')} />
+        )}
+
+        {/* VIEW: LEADERBOARD */}
+        {navTab === 'leaderboard' && (
+          <LeaderboardPage 
+            currentUserId={userId}
+            currentUser={profile}
+            onOpenAuth={(mode) => {
+              setAuthModalMode(mode);
+              setShowAuthModal(true);
+            }}
+            onNavigateToPlay={() => setNavTab('play')}
+          />
+        )}
+
+        {/* VIEW: FRIENDS */}
+        {navTab === 'friends' && (
+          <FriendsPage 
+            userId={userId}
+            username={profile?.username}
+            hasChosenName={hasChosenName}
+            onChallengeFriend={handleChallengeFriend}
+            onNavigateToPlay={() => setNavTab('play')}
+            onOpenAuth={(mode) => {
+              setAuthModalMode(mode);
+              setShowAuthModal(true);
+            }}
+          />
         )}
 
         {/* VIEW: PROFILE */}
@@ -1027,7 +1050,7 @@ export default function App() {
                         setAuthModalMode('choose_name');
                         setShowAuthModal(true);
                       } else {
-                        setShowFriendsModal(true);
+                        setNavTab('friends');
                       }
                     }}
                   >

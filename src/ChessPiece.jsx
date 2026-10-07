@@ -7,10 +7,10 @@ import React from 'react';
 export function ChessPiece({ type, color, className = '', style = {} }) {
   const isWhite = color === 'w';
 
-  // Crisp tournament styling: warm off-white for White, deep graphite for Black
-  const fillPrimary = isWhite ? '#ffffff' : '#262421';
-  const strokePrimary = isWhite ? '#1b1b1b' : '#1b1b1b';
-  const detailStroke = isWhite ? '#1b1b1b' : '#ffffff';
+  // Theme-aware piece styling
+  const fillPrimary = isWhite ? 'var(--piece-w-fill, #ffffff)' : 'var(--piece-b-fill, #262421)';
+  const strokePrimary = isWhite ? 'var(--piece-w-stroke, #1b1b1b)' : 'var(--piece-b-stroke, #1b1b1b)';
+  const detailStroke = isWhite ? 'var(--piece-w-detail, #1b1b1b)' : 'var(--piece-b-detail, #ffffff)';
 
   switch (type) {
     case 'p': // Pawn

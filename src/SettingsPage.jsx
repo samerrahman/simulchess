@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Palette, 
   Volume2, 
@@ -7,9 +7,12 @@ import {
   Check, 
   ArrowLeft,
   Zap,
-  RotateCcw
+  RotateCcw,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useTheme } from './useTheme';
+import { ChessPiece } from './ChessPiece';
 
 export default function SettingsPage({ onNavigateToPlay }) {
   const { 
@@ -21,6 +24,8 @@ export default function SettingsPage({ onNavigateToPlay }) {
     animationSpeed,
     setAnimationSpeed
   } = useTheme();
+
+  const [filterMode, setFilterMode] = useState('all'); // 'all' | 'light' | 'dark'
 
   return (
     <div className="page-container settings-page">
@@ -44,51 +49,118 @@ export default function SettingsPage({ onNavigateToPlay }) {
 
         {/* Theme Picker Section */}
         <div className="settings-section">
-          <div className="section-header-row">
-            <Palette size={20} className="text-amber" />
-            <h2 className="section-heading">Visual & Chessboard Themes</h2>
+          <div className="section-header-row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <Palette size={20} className="text-amber" />
+              <h2 className="section-heading">Visual & Chessboard Themes</h2>
+            </div>
+            
+            {/* Filter pills: All, Light, Dark */}
+            <div className="theme-filter-pills">
+              <button 
+                className={`theme-filter-btn ${filterMode === 'all' ? 'active' : ''}`}
+                onClick={() => setFilterMode('all')}
+              >
+                All ({Object.keys(themes).length})
+              </button>
+              <button 
+                className={`theme-filter-btn ${filterMode === 'light' ? 'active' : ''}`}
+                onClick={() => setFilterMode('light')}
+              >
+                <Sun size={13} className="text-amber" />
+                <span>Light ({Object.values(themes).filter(t => t.mode === 'light').length})</span>
+              </button>
+              <button 
+                className={`theme-filter-btn ${filterMode === 'dark' ? 'active' : ''}`}
+                onClick={() => setFilterMode('dark')}
+              >
+                <Moon size={13} className="text-accent" />
+                <span>Dark ({Object.values(themes).filter(t => t.mode === 'dark').length})</span>
+              </button>
+            </div>
           </div>
+
           <p className="section-desc">
-            Select a theme below. Each theme transforms both the website atmosphere and the chessboard colors simultaneously.
+            Each theme changes the board squares, custom chess piece styling, and the entire website environment.
           </p>
 
           <div className="themes-grid">
-            {Object.values(themes).map((t) => {
-              const isSelected = t.id === themeId;
-              return (
-                <div 
-                  key={t.id} 
-                  className={`theme-card ${isSelected ? 'theme-card-selected' : ''}`}
-                  onClick={() => setThemeId(t.id)}
-                >
-                  {/* Mini Chessboard Swatch Preview */}
-                  <div className="theme-board-preview" style={{ borderColor: t.boardBorder }}>
-                    <div className="preview-sq" style={{ backgroundColor: t.lightSquare }}>♞</div>
-                    <div className="preview-sq" style={{ backgroundColor: t.darkSquare }}></div>
-                    <div className="preview-sq" style={{ backgroundColor: t.darkSquare }}></div>
-                    <div className="preview-sq" style={{ backgroundColor: t.lightSquare }}>♟</div>
-                  </div>
+            {Object.values(themes)
+              .filter(t => filterMode === 'all' || t.mode === filterMode)
+              .map((t) => {
+                const isSelected = t.id === themeId;
+                return (
+                  <div 
+                    key={t.id} 
+                    className={`theme-card ${isSelected ? 'theme-card-selected' : ''}`}
+                    onClick={() => setThemeId(t.id)}
+                  >
+                    {/* Mini Chessboard Swatch Preview with themed pieces */}
+                    <div className="theme-board-preview" style={{ borderColor: t.boardBorder }}>
+                      <div className="preview-sq" style={{ backgroundColor: t.lightSquare }}>
+                        <ChessPiece 
+                          type="n" 
+                          color="w" 
+                          style={{ 
+                            width: 22, 
+                            height: 22,
+                            '--piece-w-fill': t.pieceWhite?.fill || '#ffffff',
+                            '--piece-w-stroke': t.pieceWhite?.stroke || '#1b1b1b',
+                            '--piece-w-detail': t.pieceWhite?.detail || '#1b1b1b'
+                          }} 
+                        />
+                      </div>
+                      <div className="preview-sq" style={{ backgroundColor: t.darkSquare }}></div>
+                      <div className="preview-sq" style={{ backgroundColor: t.darkSquare }}></div>
+                      <div className="preview-sq" style={{ backgroundColor: t.lightSquare }}>
+                        <ChessPiece 
+                          type="p" 
+                          color="b" 
+                          style={{ 
+                            width: 20, 
+                            height: 20,
+                            '--piece-b-fill': t.pieceBlack?.fill || '#262421',
+                            '--piece-b-stroke': t.pieceBlack?.stroke || '#111111',
+                            '--piece-b-detail': t.pieceBlack?.detail || '#ffffff'
+                          }} 
+                        />
+                      </div>
+                    </div>
 
-                  <div className="theme-info">
-                    <div className="theme-name-row">
-                      <span className="theme-name">{t.name}</span>
-                      {isSelected && (
-                        <span className="theme-active-tag">
-                          <Check size={12} />
-                          <span>Active</span>
-                        </span>
-                      )}
-                    </div>
-                    <p className="theme-desc">{t.description}</p>
-                    <div className="theme-palette-dots">
-                      <span className="palette-dot" style={{ backgroundColor: t.accent }} title="Accent color" />
-                      <span className="palette-dot" style={{ backgroundColor: t.darkSquare }} title="Dark square" />
-                      <span className="palette-dot" style={{ backgroundColor: t.lightSquare }} title="Light square" />
+                    <div className="theme-info">
+                      <div className="theme-name-row">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <span className="theme-name">{t.name}</span>
+                          <span className={`theme-mode-tag ${t.mode === 'light' ? 'mode-light' : 'mode-dark'}`}>
+                            {t.mode === 'light' ? '☀️ Light' : '🌙 Dark'}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <span className="theme-active-tag">
+                            <Check size={12} />
+                            <span>Active</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="theme-desc">{t.description}</p>
+                      
+                      <div className="theme-meta-row">
+                        <div className="theme-palette-dots" title="Board & Accent Colors">
+                          <span className="palette-dot" style={{ backgroundColor: t.accent }} title="Accent" />
+                          <span className="palette-dot" style={{ backgroundColor: t.darkSquare }} title="Dark square" />
+                          <span className="palette-dot" style={{ backgroundColor: t.lightSquare }} title="Light square" />
+                        </div>
+
+                        <div className="theme-pieces-swatch" title="Theme Piece Colors (White / Black)">
+                          <span className="piece-dot" style={{ backgroundColor: t.pieceWhite?.fill, borderColor: t.pieceWhite?.stroke }} title="White piece color" />
+                          <span className="piece-dot" style={{ backgroundColor: t.pieceBlack?.fill, borderColor: t.pieceBlack?.stroke }} title="Black piece color" />
+                          <span className="piece-tag-text">Themed Pieces</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
 

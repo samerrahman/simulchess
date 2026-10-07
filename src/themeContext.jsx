@@ -20,6 +20,18 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', themeId);
     localStorage.setItem('simulchess_theme', themeId);
+
+    const theme = THEMES[themeId] || THEMES.midnight;
+    if (theme.pieceWhite) {
+      document.documentElement.style.setProperty('--piece-w-fill', theme.pieceWhite.fill);
+      document.documentElement.style.setProperty('--piece-w-stroke', theme.pieceWhite.stroke);
+      document.documentElement.style.setProperty('--piece-w-detail', theme.pieceWhite.detail);
+    }
+    if (theme.pieceBlack) {
+      document.documentElement.style.setProperty('--piece-b-fill', theme.pieceBlack.fill);
+      document.documentElement.style.setProperty('--piece-b-stroke', theme.pieceBlack.stroke);
+      document.documentElement.style.setProperty('--piece-b-detail', theme.pieceBlack.detail);
+    }
   }, [themeId]);
 
   useEffect(() => {
