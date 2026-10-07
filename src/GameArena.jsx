@@ -153,6 +153,17 @@ export default function GameArena({
         events: turnResult.events || []
       };
 
+      const whitePending = gameState.pendingMoves?.w;
+      const blackPending = gameState.pendingMoves?.b;
+
+      const lastMovesRecord = {
+        turn: gameState.turnCount || 1,
+        moves: [
+          ...(whitePending ? [{ ...whitePending, color: 'w' }] : []),
+          ...(blackPending ? [{ ...blackPending, color: 'b' }] : [])
+        ]
+      };
+
       const timer = setTimeout(() => {
         update(ref(db, `games/${roomId}`), {
           board: turnResult.newBoard,
@@ -164,6 +175,7 @@ export default function GameArena({
           pendingMoves: { w: null, b: null },
           capturedPieces: mergedCaptured,
           lastEvents: turnResult.events || [],
+          lastMoves: lastMovesRecord,
           history: [...(gameState.history || []), newHistoryEntry]
         });
       }, 350);
@@ -458,6 +470,7 @@ export default function GameArena({
               isLocked={myStatus}
               disabled={gameState.status !== 'playing'}
               lastEvents={gameState.lastEvents || []}
+              lastMoves={gameState.lastMoves || null}
             />
           </div>
 

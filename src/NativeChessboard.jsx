@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChessPiece } from './ChessPiece';
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -13,10 +13,12 @@ export default function NativeChessboard({
   onStageMove,
   isLocked = false,
   disabled = false,
-  lastEvents = []
+  lastEvents = [],
+  lastMoves = null
 }) {
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [draggedSquare, setDraggedSquare] = useState(null);
+  const [animatedMoves, setAnimatedMoves] = useState([]);
 
   const isWhiteOrientation = orientation === 'white';
   const displayRanks = isWhiteOrientation ? [...RANKS].reverse() : [...RANKS];
@@ -24,6 +26,36 @@ export default function NativeChessboard({
 
   // Active square is either dragged or selected
   const activeSquare = draggedSquare || selectedSquare;
+
+  // Track animations when new lastMoves arrives
+  useEffect(() => {
+    if (!lastMoves || !lastMoves.moves || lastMoves.moves.length === 0) return;
+
+    // Trigger piece movement animation for 1.2 seconds
+    const startTimer = setTimeout(() => {
+      setAnimatedMoves(lastMoves.moves);
+    }, 0);
+
+    const endTimer = setTimeout(() => {
+      setAnimatedMoves([]);
+    }, 1200);
+
+    return () => {
+      clearTimeout(startTimer);
+      clearTimeout(endTimer);
+    };
+  }, [lastMoves]);
+
+  // Sets of squares involved in recent moves for persistent path highlighting
+  const movedFromSquares = useMemo(() => {
+    if (!lastMoves || !lastMoves.moves) return new Set();
+    return new Set(lastMoves.moves.map(m => m.from));
+  }, [lastMoves]);
+
+  const movedToSquares = useMemo(() => {
+    if (!lastMoves || !lastMoves.moves) return new Set();
+    return new Set(lastMoves.moves.map(m => m.to));
+  }, [lastMoves]);
 
   // Filter legal destination moves from the active square
   const activeDestinations = useMemo(() => {
@@ -72,23 +104,27 @@ export default function NativeChessboard({
       return;
     }
 
-    // 3. Otherwise deselect
+    // 3. Clicked empty square or opponent square that is not a legal move
     setSelectedSquare(null);
   }
 
-  // Handle Drag Start
+  // Handle HTML5 Drag and Drop Start
   function handleDragStart(e, square, piece) {
-    if (disabled || isLocked || playerColor === 'spectator' || piece.color !== playerColor) {
+    if (disabled || isLocked || playerColor === 'spectator') {
       e.preventDefault();
       return;
     }
+    if (!piece || piece.color !== playerColor) {
+      e.preventDefault();
+      return;
+    }
+
     setDraggedSquare(square);
     setSelectedSquare(square);
     e.dataTransfer.setData('text/plain', square);
     e.dataTransfer.effectAllowed = 'move';
   }
 
-  // Handle Drag Over
   function handleDragOver(e) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -107,6 +143,30 @@ export default function NativeChessboard({
       onStageMove(matchingMove);
       setSelectedSquare(null);
     }
+  }
+
+  // Helper to compute translation vector (percentage of square width/height)
+  function getMoveOffset(fromSq, toSq) {
+    if (!fromSq || !toSq) return { dx: 0, dy: 0 };
+    const fromFile = fromSq.charCodeAt(0) - 97;
+    const fromRank = parseInt(fromSq[1], 10) - 1;
+    const toFile = toSq.charCodeAt(0) - 97;
+    const toRank = parseInt(toSq[1], 10) - 1;
+
+    let dFile = toFile - fromFile;
+    let dRank = toRank - fromRank;
+
+    // Adjust for board view orientation
+    if (orientation === 'black') {
+      dFile = -dFile;
+      dRank = -dRank;
+    }
+
+    // dx: positive is right, dy: positive is down (rank increases upward, so dy = -dRank)
+    return {
+      dx: dFile * 100,
+      dy: -dRank * 100
+    };
   }
 
   return (
@@ -139,7 +199,15 @@ export default function NativeChessboard({
             const isTargetEnemy = isLegalTarget && originalPiece && originalPiece.color !== playerColor;
             const hasCollision = collisionSquares.has(square);
 
+            const isMovedFrom = movedFromSquares.has(square);
+            const isMovedTo = movedToSquares.has(square);
+
             const canDrag = !disabled && !isLocked && displayPiece && displayPiece.color === playerColor;
+
+            // Check if this square is the destination of an active animated move
+            const anim = animatedMoves.find(m => m.to === square);
+            const animPieceType = anim ? anim.piece?.type : null;
+            const offset = anim ? getMoveOffset(anim.from, anim.to) : null;
 
             return (
               <div
@@ -148,6 +216,8 @@ export default function NativeChessboard({
                   isSelected ? 'square-selected' : ''
                 } ${isOriginOfIntended ? 'square-origin-staged' : ''} ${
                   isDestOfIntended ? 'square-dest-staged' : ''
+                } ${isMovedFrom ? 'square-moved-from' : ''} ${
+                  isMovedTo ? 'square-moved-to' : ''
                 } ${hasCollision ? 'square-collision-highlight' : ''}`}
                 onClick={() => handleSquareClick(square)}
                 onDragOver={handleDragOver}
@@ -161,12 +231,28 @@ export default function NativeChessboard({
                   <span className="coord-file">{file}</span>
                 )}
 
+                {/* Move Step & Trail Highlights */}
+                {isMovedFrom && (
+                  <div className="square-path-marker from-marker" title="Departed square" />
+                )}
+                {isMovedTo && (
+                  <div className="square-path-marker to-marker" title="Arrived square" />
+                )}
+
                 {/* Piece Rendering */}
                 {displayPiece && (
                   <div
                     className={`piece-container ${canDrag ? 'piece-draggable' : ''} ${
                       isDestOfIntended ? 'piece-staged-preview' : ''
-                    }`}
+                    } ${anim ? `anim-piece anim-${animPieceType || 'default'}` : ''}`}
+                    style={
+                      anim && offset
+                        ? {
+                            '--start-x': `${-offset.dx}%`,
+                            '--start-y': `${-offset.dy}%`
+                          }
+                        : undefined
+                    }
                     draggable={canDrag}
                     onDragStart={(e) => handleDragStart(e, square, displayPiece)}
                     onDragEnd={() => setDraggedSquare(null)}
