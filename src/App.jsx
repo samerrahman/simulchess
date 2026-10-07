@@ -199,6 +199,9 @@ export default function App() {
           updates['status'] = 'playing';
         }
         await update(roomRef, updates);
+        setGameState({ ...data, ...updates, players: nextPlayers });
+      } else {
+        setGameState(data);
       }
 
       setColor(assignedColor);
@@ -392,6 +395,7 @@ export default function App() {
       const data = snap.val();
       if (data && (data.players?.b || data.status === 'playing')) {
         // Match Found! Transition into game
+        setGameState(data);
         setRoomId(queuedRoomId);
         setQueuedRoomId(null);
         setQueueKey(null);
@@ -466,6 +470,7 @@ export default function App() {
                 updates['status'] = 'playing';
               }
               await update(ref(db, `games/${queuedId}`), updates);
+              setGameState({ ...data, ...updates, players: fullPlayers });
             }
             break;
           }
@@ -642,6 +647,36 @@ export default function App() {
 
   // IN-GAME VIEW
   if (roomId) {
+    if (!gameState) {
+      return (
+        <div className="site-wrapper">
+          <header className="site-navbar">
+            <div className="site-nav-left">
+              <div className="site-brand" onClick={handleLeaveRoom}>
+                <div className="brand-logo-icon">
+                  <Swords size={20} />
+                </div>
+                <div className="brand-text-block">
+                  <span className="brand-title">SimulChess</span>
+                  <span className="brand-badge">Connecting</span>
+                </div>
+              </div>
+            </div>
+            <div className="site-nav-right">
+              <button className="btn btn-secondary btn-sm" onClick={handleLeaveRoom}>
+                Cancel
+              </button>
+            </div>
+          </header>
+          <div className="page-loading-state" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+            <Loader2 size={36} className="animate-spin text-accent" />
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Entering Match Arena...</h2>
+            <p style={{ color: 'var(--text-secondary)' }}>Synchronizing room {roomId}...</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="app-container">
         <GameArena

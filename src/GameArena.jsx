@@ -14,7 +14,8 @@ import {
   HelpCircle,
   TrendingUp,
   TrendingDown,
-  Minus
+  Minus,
+  Loader2
 } from 'lucide-react';
 import HowToPlayModal from './HowToPlayModal';
 import { ref, update } from 'firebase/database';
@@ -31,14 +32,17 @@ import { recordMatchOutcome, calculateEloDelta } from './eloService';
 
 const EMOJIS = ['👏', '😮', '💀', '🔥', '🤔', '🤝'];
 
-export default function GameArena({ 
-  gameState, 
-  color, 
-  roomId, 
-  userProfile, 
-  onLeaveRoom 
-}) {
-  const [stagedInfo, setStagedInfo] = useState({ turn: gameState.turnCount || 1, move: null });
+export default function GameArena(props) {
+  const { 
+    gameState, 
+    roomId
+  } = props;
+
+  const color = props.color || props.playerColor || 'spectator';
+  const userProfile = props.userProfile || props.currentUserProfile;
+  const onLeaveRoom = props.onLeaveRoom || props.onLeave;
+
+  const [stagedInfo, setStagedInfo] = useState({ turn: gameState?.turnCount || 1, move: null });
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -53,13 +57,13 @@ export default function GameArena({
   const myColor = color;
   const enemyColor = color === 'w' ? 'b' : 'w';
 
-  const myStatus = !isSpectator && gameState.submitted ? !!gameState.submitted[myColor] : false;
-  const enemyStatus = !isSpectator && gameState.submitted ? !!gameState.submitted[enemyColor] : false;
+  const myStatus = !isSpectator && gameState?.submitted ? !!gameState.submitted[myColor] : false;
+  const enemyStatus = !isSpectator && gameState?.submitted ? !!gameState.submitted[enemyColor] : false;
 
   // Staged move is valid for the current turn count
-  const intendedMove = (myStatus && gameState.pendingMoves?.[myColor]) 
+  const intendedMove = (myStatus && gameState?.pendingMoves?.[myColor]) 
     ? gameState.pendingMoves[myColor] 
-    : (stagedInfo.turn === (gameState.turnCount || 1) ? stagedInfo.move : null);
+    : (stagedInfo.turn === (gameState?.turnCount || 1) ? stagedInfo.move : null);
 
   // Anti-spam reaction cooldown timer
   useEffect(() => {
@@ -72,7 +76,7 @@ export default function GameArena({
 
   // Listen to emoji reactions from Firebase
   useEffect(() => {
-    if (gameState.reaction && gameState.reaction.timestamp) {
+    if (gameState?.reaction && gameState.reaction.timestamp) {
       const now = Date.now();
       if (now - gameState.reaction.timestamp < 3500) {
         const reactionTimer = setTimeout(() => {
@@ -87,7 +91,7 @@ export default function GameArena({
         };
       }
     }
-  }, [gameState.reaction]);
+  }, [gameState?.reaction]);
 
   // Board orientation
   const orientation = useMemo(() => {
@@ -97,7 +101,7 @@ export default function GameArena({
 
   // Compute legal moves
   const legalMoves = useMemo(() => {
-    if (isSpectator || myStatus || gameState.status !== 'playing') return [];
+    if (!gameState || isSpectator || myStatus || gameState.status !== 'playing') return [];
     return getLegalMoves(
       gameState.board || {},
       myColor,
@@ -105,18 +109,15 @@ export default function GameArena({
       gameState.enPassantTarget
     );
   }, [
+    gameState,
     isSpectator, 
     myStatus, 
-    gameState.status, 
-    gameState.board, 
-    myColor, 
-    gameState.castlingRights, 
-    gameState.enPassantTarget
+    myColor
   ]);
 
   // Master turn resolution when both moves are submitted
   useEffect(() => {
-    if (gameState.status !== 'playing') return;
+    if (!gameState || gameState.status !== 'playing') return;
     if (!gameState.submitted?.w || !gameState.submitted?.b) return;
 
     // White resolves turn (or Black fallback if White is not connected)
@@ -190,6 +191,7 @@ export default function GameArena({
 
   // Handle Game Over Elo Updates (Calculated once and synchronized across both clients)
   useEffect(() => {
+    if (!gameState) return;
     const isFinished = ['w_won', 'b_won', 'draw'].includes(gameState.status);
     if (!isFinished) return;
 
@@ -238,11 +240,11 @@ export default function GameArena({
       }, 0);
       return () => clearTimeout(previewTimer);
     }
-  }, [gameState.status, gameState.eloSummary, gameState.eloProcessed, gameState.players, gameState.playerMeta, myColor, roomId, eloResult]);
+  }, [gameState, myColor, roomId, eloResult]);
 
   // Immediately lock in move on piece placement
   async function handleMovePiece(move) {
-    if (myStatus || gameState.status !== 'playing' || !roomId || isSpectator) return;
+    if (!gameState || myStatus || gameState.status !== 'playing' || !roomId || isSpectator) return;
     setStagedInfo({ turn: gameState.turnCount || 1, move });
     await update(ref(db, `games/${roomId}`), {
       [`pendingMoves/${myColor}`]: move,
@@ -252,13 +254,13 @@ export default function GameArena({
 
   // Cancel / Undo Move before opponent submits
   const handleUndoMove = useCallback(async () => {
-    if (!myStatus || !roomId || isSpectator || enemyStatus) return;
+    if (!gameState || !myStatus || !roomId || isSpectator || enemyStatus) return;
     setStagedInfo({ turn: gameState.turnCount || 1, move: null });
     await update(ref(db, `games/${roomId}`), {
       [`pendingMoves/${myColor}`]: null,
       [`submitted/${myColor}`]: false
     });
-  }, [myStatus, roomId, isSpectator, enemyStatus, gameState.turnCount, myColor]);
+  }, [gameState, myStatus, roomId, isSpectator, enemyStatus, myColor]);
 
   // Pressing Escape key undoes lock-in if opponent hasn't submitted yet
   useEffect(() => {
@@ -284,6 +286,33 @@ export default function GameArena({
       }
     });
   }, [reactionCooldown, roomId, isSpectator, myColor]);
+
+  // Early return loading screen if gameState hasn't arrived yet from Firebase
+  if (!gameState) {
+    return (
+      <div className="game-arena-layout">
+        <header className="arena-header">
+          <div className="header-left">
+            <button className="btn-icon" onClick={onLeaveRoom} title="Return to Lobby">
+              <ArrowLeft size={18} />
+              <span className="hide-mobile">Lobby</span>
+            </button>
+            <div className="arena-brand">
+              <Swords size={20} className="brand-icon" />
+              <span className="brand-title">SimulChess</span>
+              <span className="turn-pill">Connecting...</span>
+            </div>
+          </div>
+        </header>
+
+        <div className="page-loading-state" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+          <Loader2 size={36} className="animate-spin text-accent" />
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Loading Match Arena...</h2>
+          <p style={{ color: 'var(--text-secondary)' }}>Setting up the simultaneous chessboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Copy room link
   function handleCopyLink() {
