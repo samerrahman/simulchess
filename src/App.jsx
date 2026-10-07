@@ -74,10 +74,11 @@ export default function App() {
 
   // Load and refresh player profile
   const refreshProfile = useCallback(async () => {
-    const prof = await getOrCreateProfile(userId);
+    const isAuth = Boolean(authUser);
+    const prof = await getOrCreateProfile(userId, isAuth, authUser?.email);
     setProfile(prof);
     setEditNameVal(prof.username);
-  }, [userId]);
+  }, [userId, authUser]);
 
   useEffect(() => {
     refreshProfile();
@@ -567,6 +568,11 @@ export default function App() {
           isOpen={showLeaderboard}
           onClose={() => setShowLeaderboard(false)}
           currentUserId={userId}
+          currentUser={authUser}
+          onOpenAuth={() => {
+            setShowLeaderboard(false);
+            setShowAuthModal(true);
+          }}
         />
 
         <AuthModal 

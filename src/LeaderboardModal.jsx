@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Trophy, Medal, X, Loader2, Flame } from 'lucide-react';
+import { Trophy, Medal, X, Loader2, Flame, LogIn } from 'lucide-react';
 import { getTopLeaderboard } from './eloService';
 
-export default function LeaderboardModal({ isOpen, onClose, currentUserId }) {
+export default function LeaderboardModal({ isOpen, onClose, currentUserId, currentUser, onOpenAuth }) {
   const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,6 +46,24 @@ export default function LeaderboardModal({ isOpen, onClose, currentUserId }) {
         </div>
 
         <div className="modal-body leaderboard-body">
+          {!currentUser && (
+            <div className="leaderboard-auth-banner">
+              <span className="leaderboard-auth-banner-text">
+                Only registered players appear on the leaderboard.
+              </span>
+              {onOpenAuth && (
+                <button 
+                  type="button"
+                  className="btn btn-secondary btn-sm leaderboard-auth-btn"
+                  onClick={onOpenAuth}
+                >
+                  <LogIn size={13} />
+                  <span>Sign In</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {loading ? (
             <div className="leaderboard-loading">
               <Loader2 size={32} className="animate-spin text-accent" />
@@ -54,8 +72,8 @@ export default function LeaderboardModal({ isOpen, onClose, currentUserId }) {
           ) : leaders.length === 0 ? (
             <div className="leaderboard-empty">
               <Flame size={32} className="text-secondary" />
-              <p>No rated matches recorded yet!</p>
-              <span>Play a match to claim the #1 spot on the leaderboard.</span>
+              <p>No registered players ranked yet!</p>
+              <span>Create an account and play a match to claim the #1 spot on the leaderboard.</span>
             </div>
           ) : (
             <div className="leaderboard-table-wrap">
@@ -112,7 +130,7 @@ export default function LeaderboardModal({ isOpen, onClose, currentUserId }) {
         </div>
 
         <div className="modal-footer">
-          <span className="leaderboard-hint">Ratings adjust via standard Elo ($K=32$) after every match.</span>
+          <span className="leaderboard-hint">Ranked only for signed-in accounts. Ratings adjust via standard Elo ($K=32$).</span>
           <button className="btn btn-secondary btn-sm" onClick={onClose}>
             Close
           </button>

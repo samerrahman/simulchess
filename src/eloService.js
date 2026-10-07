@@ -33,7 +33,7 @@ export function calculateEloDelta(whiteElo, blackElo, outcome) {
 /**
  * Gets or initializes a player's profile in Firebase and localStorage.
  */
-export async function getOrCreateProfile(userId) {
+export async function getOrCreateProfile(userId, isAuthUser = false, email = null) {
   const localName = localStorage.getItem(`simulchess_name_${userId}`);
   const userRef = ref(db, `users/${userId}`);
 
@@ -41,6 +41,13 @@ export async function getOrCreateProfile(userId) {
     const snap = await get(userRef);
     if (snap.exists()) {
       const data = snap.val();
+      // If signed in, ensure isRegistered and email are saved
+      if (isAuthUser && (!data.isRegistered || (email && !data.email))) {
+        await update(userRef, {
+          isRegistered: true,
+          ...(email ? { email } : {})
+        });
+      }
       return {
         userId,
         username: data.username || localName || `Player_${userId.slice(-4).toUpperCase()}`,
@@ -48,7 +55,9 @@ export async function getOrCreateProfile(userId) {
         gamesPlayed: Number(data.gamesPlayed) || 0,
         wins: Number(data.wins) || 0,
         losses: Number(data.losses) || 0,
-        draws: Number(data.draws) || 0
+        draws: Number(data.draws) || 0,
+        isRegistered: Boolean(data.isRegistered || isAuthUser),
+        email: data.email || email || null
       };
     } else {
       const initialProfile = {
@@ -59,6 +68,8 @@ export async function getOrCreateProfile(userId) {
         wins: 0,
         losses: 0,
         draws: 0,
+        isRegistered: Boolean(isAuthUser),
+        ...(email ? { email } : {}),
         createdAt: Date.now()
       };
       await set(userRef, initialProfile);
@@ -73,7 +84,9 @@ export async function getOrCreateProfile(userId) {
       gamesPlayed: 0,
       wins: 0,
       losses: 0,
-      draws: 0
+      draws: 0,
+      isRegistered: Boolean(isAuthUser),
+      email: email || null
     };
   }
 }
@@ -106,8 +119,8 @@ export async function recordMatchOutcome(whiteUserId, blackUserId, winnerStatus)
     else if (winnerStatus === 'b_won') outcome = 0;
 
     const [whiteProfile, blackProfile] = await Promise.all([
-      getOrCreateProfile(whiteUserId),
-      getOrCreateProfile(blackUserId)
+      getOrCreateProfile(whiteUserId, !whiteUserId.startsWith('user_')),
+      getOrCreateProfile(blackUserId, !blackUserId.startsWith('user_'))
     ]);
 
     const { whiteDelta, blackDelta, newWhiteElo, newBlackElo } = calculateEloDelta(
@@ -157,12 +170,13 @@ export async function recordMatchOutcome(whiteUserId, blackUserId, winnerStatus)
 }
 
 /**
- * Fetches the top 10 rated players for the leaderboard.
+ * Fetches the top 10 rated registered players for the leaderboard.
+ * Anonymous/guest players are excluded.
  */
 export async function getTopLeaderboard() {
   try {
     const usersRef = ref(db, 'users');
-    const topQuery = query(usersRef, orderByChild('elo'), limitToLast(20));
+    const topQuery = query(usersRef, orderByChild('elo'), limitToLast(100));
     const snap = await get(topQuery);
 
     if (!snap.exists()) return [];
@@ -170,7 +184,9 @@ export async function getTopLeaderboard() {
     const list = [];
     snap.forEach((child) => {
       const val = child.val();
-      if (val && val.gamesPlayed > 0) {
+      const isGuest = child.key.startsWith('user_');
+      const isRegistered = !isGuest && (val?.isRegistered === true || Boolean(val?.email) || val?.isRegistered !== false);
+      if (val && val.gamesPlayed > 0 && isRegistered) {
         list.push({
           userId: child.key,
           username: val.username || 'Anonymous',
