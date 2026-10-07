@@ -1,6 +1,6 @@
 # SimulChess ♟️⚡
 
-Real-time simultaneous multiplayer chess with collision mechanics, rated matchmaking, and a Pokémon Showdown-style account system.
+Real-time simultaneous multiplayer chess with collision mechanics, rated matchmaking, and an account system.
 
 **[🎮 Play Online](https://simulchess-daf26.web.app)**
 
