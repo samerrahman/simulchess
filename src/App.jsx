@@ -118,63 +118,6 @@ export default function App() {
     return () => unsub();
   }, [userId]);
 
-  // Accept incoming friend challenge
-  const handleAcceptChallenge = useCallback(async () => {
-    if (!incomingChallenge) return;
-    const targetRoom = incomingChallenge.roomId;
-    const challengeId = incomingChallenge.challengeId;
-    setIncomingChallenge(null);
-    try {
-      await respondToChallenge(userId, challengeId, true);
-      joinRoomById(targetRoom, true);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [incomingChallenge, userId, joinRoomById]);
-
-  // Decline incoming friend challenge
-  const handleDeclineChallenge = useCallback(async () => {
-    if (!incomingChallenge) return;
-    const challengeId = incomingChallenge.challengeId;
-    setIncomingChallenge(null);
-    try {
-      await respondToChallenge(userId, challengeId, false);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [incomingChallenge, userId]);
-
-  // Challenge a friend directly to a match
-  const handleChallengeFriend = useCallback(async (friend) => {
-    if (!friend || !friend.friendId) return;
-    setLoadingMsg(`Challenging ${friend.username}...`);
-    try {
-      const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const initialGame = createInitialGameState();
-      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
-      const myElo = profile?.elo || 1200;
-
-      initialGame.players = { w: userId, b: null };
-      initialGame.playerMeta = {
-        w: { userId, username: myName, elo: myElo },
-        b: null
-      };
-      initialGame.status = 'waiting';
-
-      await set(ref(db, `games/${newRoomId}`), initialGame);
-      setColor('w');
-      setRoomId(newRoomId);
-      window.history.pushState({ inGame: true, roomId: newRoomId }, '', `?room=${newRoomId}`);
-
-      await sendChallenge(userId, myName, myElo, friend.friendId, newRoomId);
-    } catch (e) {
-      console.error("Error challenging friend:", e);
-      setErrorMsg("Failed to send challenge: " + e.message);
-    } finally {
-      setLoadingMsg('');
-    }
-  }, [userId, profile]);
-
   // Join a room by ID and assign color
   const joinRoomById = useCallback(async (targetRoomId, shouldPushHistory = true) => {
     const cleanId = targetRoomId.trim().toUpperCase();
@@ -237,6 +180,63 @@ export default function App() {
     } catch (err) {
       console.error('Failed to join room:', err);
       setErrorMsg('Failed to join room: ' + err.message);
+    } finally {
+      setLoadingMsg('');
+    }
+  }, [userId, profile]);
+
+  // Accept incoming friend challenge
+  const handleAcceptChallenge = useCallback(async () => {
+    if (!incomingChallenge) return;
+    const targetRoom = incomingChallenge.roomId;
+    const challengeId = incomingChallenge.challengeId;
+    setIncomingChallenge(null);
+    try {
+      await respondToChallenge(userId, challengeId, true);
+      joinRoomById(targetRoom, true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [incomingChallenge, userId, joinRoomById]);
+
+  // Decline incoming friend challenge
+  const handleDeclineChallenge = useCallback(async () => {
+    if (!incomingChallenge) return;
+    const challengeId = incomingChallenge.challengeId;
+    setIncomingChallenge(null);
+    try {
+      await respondToChallenge(userId, challengeId, false);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [incomingChallenge, userId]);
+
+  // Challenge a friend directly to a match
+  const handleChallengeFriend = useCallback(async (friend) => {
+    if (!friend || !friend.friendId) return;
+    setLoadingMsg(`Challenging ${friend.username}...`);
+    try {
+      const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const initialGame = createInitialGameState();
+      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+      const myElo = profile?.elo || 1200;
+
+      initialGame.players = { w: userId, b: null };
+      initialGame.playerMeta = {
+        w: { userId, username: myName, elo: myElo },
+        b: null
+      };
+      initialGame.status = 'waiting';
+
+      await set(ref(db, `games/${newRoomId}`), initialGame);
+      setColor('w');
+      setRoomId(newRoomId);
+      window.history.pushState({ inGame: true, roomId: newRoomId }, '', `?room=${newRoomId}`);
+
+      await sendChallenge(userId, myName, myElo, friend.friendId, newRoomId);
+    } catch (e) {
+      console.error("Error challenging friend:", e);
+      setErrorMsg("Failed to send challenge: " + e.message);
     } finally {
       setLoadingMsg('');
     }
