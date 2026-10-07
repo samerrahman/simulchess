@@ -215,13 +215,28 @@ export default function AuthModal({
               </p>
 
               <div className="auth-input-group">
-                <label className="auth-label">Choose Name</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="auth-label">Choose Username</label>
+                  <button 
+                    type="button" 
+                    className="auth-link-btn" 
+                    style={{ fontSize: '0.75rem', color: 'var(--accent-blue)' }}
+                    onClick={() => {
+                      const prefixes = ['Swift', 'Shadow', 'Storm', 'Solar', 'Lunar', 'Iron', 'Apex', 'Cyber'];
+                      const pieces = ['Knight', 'Rook', 'Bishop', 'Pawn', 'King', 'Queen'];
+                      const randomName = prefixes[Math.floor(Math.random() * prefixes.length)] + pieces[Math.floor(Math.random() * pieces.length)] + Math.floor(10 + Math.random() * 89);
+                      setUsername(randomName);
+                    }}
+                  >
+                    🎲 Suggest Name
+                  </button>
+                </div>
                 <input 
                   type="text" 
                   required 
                   autoFocus
                   className="input-field" 
-                  placeholder="e.g. Red, Cynthia, Ash" 
+                  placeholder="Enter a player name..." 
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   maxLength={18}
@@ -239,7 +254,7 @@ export default function AuthModal({
                     <Loader2 size={18} className="animate-spin" />
                   ) : (
                     <>
-                      <span>Play as {username.trim() || 'Guest'}</span>
+                      <span>{username.trim() ? `Play as ${username.trim()}` : 'Set Username & Play'}</span>
                       <ArrowRight size={18} />
                     </>
                   )}

@@ -162,13 +162,21 @@ export function calculateEloDelta(whiteElo, blackElo, outcome) {
  * Gets or initializes a player's profile in Firebase and localStorage.
  */
 export async function getOrCreateProfile(userId, isAuthUser = false, email = null, preferredUsername = null) {
-  const localName = preferredUsername || localStorage.getItem(`simulchess_name_${userId}`) || localStorage.getItem('simulchess_chosen_username');
+  let localName = preferredUsername || localStorage.getItem(`simulchess_name_${userId}`) || localStorage.getItem('simulchess_chosen_username');
+  if (localName && localName.startsWith('Player_')) {
+    localName = null;
+  }
   const userRef = ref(db, `users/${userId}`);
 
   try {
     const snap = await get(userRef);
     if (snap.exists()) {
       const data = snap.val();
+      let resolvedName = data.username || localName || null;
+      if (resolvedName && resolvedName.startsWith('Player_')) {
+        resolvedName = null;
+      }
+
       // If signed in, ensure isRegistered and email are saved
       if (isAuthUser && (!data.isRegistered || (email && !data.email))) {
         await update(userRef, {
@@ -177,12 +185,12 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
         });
       }
       // If signed in, ensure the username registry is updated
-      if (isAuthUser && data.username) {
-        const clean = normalizeUsername(data.username);
+      if (isAuthUser && resolvedName) {
+        const clean = normalizeUsername(resolvedName);
         if (clean) {
           set(ref(db, `usernames/${clean}`), {
             uid: userId,
-            username: data.username,
+            username: resolvedName,
             email: email || data.email || `${clean}@simulchess.app`,
             isRegistered: true,
             createdAt: data.createdAt || Date.now()
@@ -191,7 +199,7 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
       }
       return {
         userId,
-        username: data.username || localName || `Player_${userId.slice(-4).toUpperCase()}`,
+        username: resolvedName,
         elo: Number(data.elo) || DEFAULT_ELO,
         gamesPlayed: Number(data.gamesPlayed) || 0,
         wins: Number(data.wins) || 0,
@@ -203,7 +211,7 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
     } else {
       const initialProfile = {
         userId,
-        username: localName || `Player_${userId.slice(-4).toUpperCase()}`,
+        username: localName || null,
         elo: DEFAULT_ELO,
         gamesPlayed: 0,
         wins: 0,
@@ -232,7 +240,7 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
     console.warn("Failed to fetch user profile, using fallback:", err);
     return {
       userId,
-      username: localName || `Player_${userId.slice(-4).toUpperCase()}`,
+      username: localName || null,
       elo: DEFAULT_ELO,
       gamesPlayed: 0,
       wins: 0,
