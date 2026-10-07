@@ -251,14 +251,25 @@ export default function GameArena({
   }
 
   // Cancel / Undo Move before opponent submits
-  async function handleUndoMove() {
+  const handleUndoMove = useCallback(async () => {
     if (!myStatus || !roomId || isSpectator || enemyStatus) return;
     setStagedInfo({ turn: gameState.turnCount || 1, move: null });
     await update(ref(db, `games/${roomId}`), {
       [`pendingMoves/${myColor}`]: null,
       [`submitted/${myColor}`]: false
     });
-  }
+  }, [myStatus, roomId, isSpectator, enemyStatus, gameState.turnCount, myColor]);
+
+  // Pressing Escape key undoes lock-in if opponent hasn't submitted yet
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        handleUndoMove();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndoMove]);
 
   // Send an emoji reaction
   const handleSendReaction = useCallback(async (emoji) => {
@@ -576,8 +587,8 @@ export default function GameArena({
               <div className="action-card-header">
                 <span className="action-card-title">Turn #{gameState.turnCount || 1} Status</span>
                 {myStatus && !enemyStatus && (
-                  <button className="btn btn-secondary btn-xs undo-btn" onClick={handleUndoMove}>
-                    <Undo2 size={13} /> Undo Move
+                  <button className="btn btn-secondary btn-xs undo-btn" onClick={handleUndoMove} title="Press Escape to undo move">
+                    <Undo2 size={13} /> Undo Move <kbd className="kbd-hint">Esc</kbd>
                   </button>
                 )}
               </div>
