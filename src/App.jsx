@@ -12,12 +12,15 @@ import {
   User,
   ShieldCheck,
   UserPlus,
-  AlertCircle
+  AlertCircle,
+  Check,
+  X
 } from 'lucide-react';
 import GameArena from './GameArena';
 import HowToPlayModal from './HowToPlayModal';
 import LeaderboardModal from './LeaderboardModal';
 import AuthModal from './AuthModal';
+import FriendsModal from './FriendsModal';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -32,6 +35,13 @@ import {
 } from 'firebase/database';
 import { createInitialGameState } from './gameLogic';
 import { getOrCreateProfile, updateUsername } from './eloService';
+import { 
+  setupUserPresence, 
+  setUserGameStatus, 
+  subscribeToIncomingChallenges, 
+  respondToChallenge, 
+  sendChallenge 
+} from './friendService';
 
 export default function App() {
   const [roomId, setRoomId] = useState('');
@@ -42,6 +52,8 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('');
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [incomingChallenge, setIncomingChallenge] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('choose_name');
   const [pendingAction, setPendingAction] = useState(null);
@@ -83,6 +95,85 @@ export default function App() {
   useEffect(() => {
     refreshProfile();
   }, [refreshProfile]);
+
+  // Setup real-time online presence
+  useEffect(() => {
+    if (!userId) return;
+    const cleanup = setupUserPresence(userId);
+    return () => cleanup();
+  }, [userId]);
+
+  // Update in-game vs in-lobby state
+  useEffect(() => {
+    if (!userId) return;
+    setUserGameStatus(userId, roomId ? 'in_game' : 'in_lobby');
+  }, [userId, roomId]);
+
+  // Listen to incoming match challenges from friends
+  useEffect(() => {
+    if (!userId) return;
+    const unsub = subscribeToIncomingChallenges(userId, (challenge) => {
+      setIncomingChallenge(challenge);
+    });
+    return () => unsub();
+  }, [userId]);
+
+  // Accept incoming friend challenge
+  const handleAcceptChallenge = useCallback(async () => {
+    if (!incomingChallenge) return;
+    const targetRoom = incomingChallenge.roomId;
+    const challengeId = incomingChallenge.challengeId;
+    setIncomingChallenge(null);
+    try {
+      await respondToChallenge(userId, challengeId, true);
+      joinRoomById(targetRoom, true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [incomingChallenge, userId, joinRoomById]);
+
+  // Decline incoming friend challenge
+  const handleDeclineChallenge = useCallback(async () => {
+    if (!incomingChallenge) return;
+    const challengeId = incomingChallenge.challengeId;
+    setIncomingChallenge(null);
+    try {
+      await respondToChallenge(userId, challengeId, false);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [incomingChallenge, userId]);
+
+  // Challenge a friend directly to a match
+  const handleChallengeFriend = useCallback(async (friend) => {
+    if (!friend || !friend.friendId) return;
+    setLoadingMsg(`Challenging ${friend.username}...`);
+    try {
+      const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const initialGame = createInitialGameState();
+      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+      const myElo = profile?.elo || 1200;
+
+      initialGame.players = { w: userId, b: null };
+      initialGame.playerMeta = {
+        w: { userId, username: myName, elo: myElo },
+        b: null
+      };
+      initialGame.status = 'waiting';
+
+      await set(ref(db, `games/${newRoomId}`), initialGame);
+      setColor('w');
+      setRoomId(newRoomId);
+      window.history.pushState({ inGame: true, roomId: newRoomId }, '', `?room=${newRoomId}`);
+
+      await sendChallenge(userId, myName, myElo, friend.friendId, newRoomId);
+    } catch (e) {
+      console.error("Error challenging friend:", e);
+      setErrorMsg("Failed to send challenge: " + e.message);
+    } finally {
+      setLoadingMsg('');
+    }
+  }, [userId, profile]);
 
   // Join a room by ID and assign color
   const joinRoomById = useCallback(async (targetRoomId, shouldPushHistory = true) => {
@@ -493,67 +584,25 @@ export default function App() {
     return (
       <div className="lobby-wrapper">
         <div className="lobby-card">
-          {/* Top Bar inside Lobby: Profile & Leaderboard trigger */}
+          {/* Top Bar inside Lobby: Profile Pill, Friends, Leaderboard */}
           <div className="lobby-top-bar">
-            {profile && (
-              <div className="user-profile-badge showdown-profile-badge">
-                <div className="user-profile-main">
-                  <div className="profile-name-tag-row">
-                    {authUser ? (
-                      <div 
-                        className="profile-name-tag showdown-name-registered" 
-                        onClick={() => { setAuthModalMode('account'); setShowAuthModal(true); }}
-                        title="Click to view account"
-                      >
-                        <ShieldCheck size={14} className="text-accent" />
-                        <span className="profile-username">{profile.username}</span>
-                        <span className="badge-registered-tag">✓</span>
-                      </div>
-                    ) : hasChosenName ? (
-                      <div className="unregistered-name-group">
-                        <div 
-                          className="profile-name-tag showdown-name-unregistered"
-                          onClick={() => { setAuthModalMode('choose_name'); setShowAuthModal(true); }}
-                          title="Click to change name"
-                        >
-                          <span className="profile-username">{profile.username}</span>
-                          <span className="unregistered-pill-tag">Unregistered</span>
-                          <Edit2 size={11} className="edit-icon-subtle" />
-                        </div>
-                        <button 
-                          type="button" 
-                          className="btn btn-primary btn-xs btn-claim-name"
-                          onClick={() => { setAuthModalMode('register'); setShowAuthModal(true); }}
-                          title="Claim this username and secure your Elo"
-                        >
-                          <UserPlus size={12} />
-                          <span>Register</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary btn-xs btn-choose-name-top"
-                        onClick={() => { setAuthModalMode('choose_name'); setShowAuthModal(true); }}
-                      >
-                        <Sparkles size={12} className="text-amber" />
-                        <span>Choose Name</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="profile-stats-row">
-                    <span className="profile-elo-pill">
-                      <Sparkles size={11} className="text-amber" />
-                      {profile.elo} Elo
-                    </span>
-                    <span className="profile-record-pill">
-                      {profile.wins}W - {profile.losses}L - {profile.draws}D
-                    </span>
-                  </div>
+            {hasChosenName && profile ? (
+              <div 
+                className="lobby-user-pill"
+                onClick={() => { setAuthModalMode('account'); setShowAuthModal(true); }}
+                title="View Profile & Rating"
+              >
+                <div className="user-pill-avatar">
+                  <User size={15} />
                 </div>
+                <span className="user-pill-name">{profile.username}</span>
+                {authUser ? (
+                  <span className="badge-registered-tag" title="Verified Account">✓</span>
+                ) : (
+                  <span className="user-pill-guest-tag">Guest</span>
+                )}
               </div>
-            )}
+            ) : <div className="top-bar-placeholder" />}
 
             <div className="lobby-top-actions">
               <button 
@@ -566,22 +615,45 @@ export default function App() {
               </button>
 
               <button 
-                className="btn btn-secondary btn-sm auth-btn" 
+                className="btn btn-secondary btn-sm friends-btn" 
                 onClick={() => {
-                  if (authUser) {
-                    setAuthModalMode('account');
-                  } else if (hasChosenName) {
-                    setAuthModalMode('register');
-                  } else {
+                  if (!hasChosenName) {
                     setAuthModalMode('choose_name');
+                    setShowAuthModal(true);
+                  } else {
+                    setShowFriendsModal(true);
                   }
-                  setShowAuthModal(true);
                 }}
-                title={authUser ? `Signed in as ${authUser.displayName || authUser.email}` : "Sign In or Register"}
+                title="Friends List & Challenges"
               >
-                {authUser ? <ShieldCheck size={16} className="text-accent" /> : <User size={16} />}
-                <span>{authUser ? "Account" : hasChosenName ? "Register" : "Choose name"}</span>
+                <Users size={16} className="text-secondary" />
+                <span>Friends</span>
               </button>
+
+              {!hasChosenName ? (
+                <button 
+                  className="btn btn-primary btn-sm auth-btn" 
+                  onClick={() => {
+                    setAuthModalMode('choose_name');
+                    setShowAuthModal(true);
+                  }}
+                >
+                  <Sparkles size={15} />
+                  <span>Choose Name</span>
+                </button>
+              ) : !authUser ? (
+                <button 
+                  className="btn btn-primary btn-sm auth-btn btn-register-top" 
+                  onClick={() => {
+                    setAuthModalMode('register');
+                    setShowAuthModal(true);
+                  }}
+                  title="Claim username and permanently save Elo"
+                >
+                  <UserPlus size={15} />
+                  <span>Register</span>
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -721,6 +793,14 @@ export default function App() {
           }}
         />
 
+        <FriendsModal 
+          isOpen={showFriendsModal}
+          onClose={() => setShowFriendsModal(false)}
+          userId={userId}
+          username={profile?.username || 'Player'}
+          onChallengeFriend={handleChallengeFriend}
+        />
+
         <AuthModal 
           isOpen={showAuthModal}
           onClose={() => {
@@ -733,6 +813,37 @@ export default function App() {
           onChooseUnregisteredName={handleChooseUnregisteredName}
           onAuthSuccess={handleAuthSuccess}
         />
+
+        {/* Incoming Live Challenge Popup */}
+        {incomingChallenge && (
+          <div className="challenge-popup-backdrop">
+            <div className="challenge-popup-card">
+              <div className="challenge-popup-header">
+                <Swords size={28} className="text-accent challenge-icon-bounce" />
+                <h3 className="challenge-popup-title">Match Challenge!</h3>
+              </div>
+              <p className="challenge-popup-text">
+                <strong>{incomingChallenge.fromUsername}</strong> ({incomingChallenge.fromElo} Elo) has challenged you to a game!
+              </p>
+              <div className="challenge-popup-actions">
+                <button 
+                  className="btn btn-primary btn-full btn-accept-challenge" 
+                  onClick={handleAcceptChallenge}
+                >
+                  <Check size={16} />
+                  <span>Accept & Play</span>
+                </button>
+                <button 
+                  className="btn btn-secondary btn-full btn-decline-challenge" 
+                  onClick={handleDeclineChallenge}
+                >
+                  <X size={16} />
+                  <span>Decline</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -752,13 +863,46 @@ export default function App() {
 
   // ACTIVE GAME ARENA VIEW
   return (
-    <GameArena
-      gameState={gameState}
-      color={color}
-      roomId={roomId}
-      userId={userId}
-      userProfile={profile}
-      onLeaveRoom={handleLeaveRoom}
-    />
+    <>
+      <GameArena
+        gameState={gameState}
+        color={color}
+        roomId={roomId}
+        userId={userId}
+        userProfile={profile}
+        onLeaveRoom={handleLeaveRoom}
+      />
+
+      {/* Incoming Live Challenge Popup if in game */}
+      {incomingChallenge && (
+        <div className="challenge-popup-backdrop">
+          <div className="challenge-popup-card">
+            <div className="challenge-popup-header">
+              <Swords size={28} className="text-accent challenge-icon-bounce" />
+              <h3 className="challenge-popup-title">Match Challenge!</h3>
+            </div>
+            <p className="challenge-popup-text">
+              <strong>{incomingChallenge.fromUsername}</strong> ({incomingChallenge.fromElo} Elo) has challenged you to a game!
+            </p>
+            <div className="challenge-popup-actions">
+              <button 
+                className="btn btn-primary btn-full btn-accept-challenge" 
+                onClick={handleAcceptChallenge}
+              >
+                <Check size={16} />
+                <span>Accept & Play</span>
+              </button>
+              <button 
+                className="btn btn-secondary btn-full btn-decline-challenge" 
+                onClick={handleDeclineChallenge}
+              >
+                <X size={16} />
+                <span>Decline</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

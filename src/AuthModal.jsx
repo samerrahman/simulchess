@@ -36,7 +36,10 @@ export default function AuthModal({
       setPassword('');
       setConfirmPassword('');
       setRegisteredNotice('');
-      if (currentUser) {
+      if (initialMode === 'account') {
+        setMode('account');
+        setUsername(userProfile?.username || '');
+      } else if (currentUser) {
         setMode('account');
       } else if (initialMode === 'register') {
         setMode('register');
@@ -402,12 +405,20 @@ export default function AuthModal({
             <div className="account-details-view">
               <div className="account-user-card">
                 <div className="account-user-header">
-                  <ShieldCheck size={28} className="text-accent" />
+                  {currentUser ? (
+                    <ShieldCheck size={28} className="text-accent" />
+                  ) : (
+                    <Sparkles size={28} className="text-amber" />
+                  )}
                   <div>
                     <h3 className="account-username">
-                      {userProfile?.username || currentUser?.displayName || 'Registered Player'}
+                      {userProfile?.username || currentUser?.displayName || 'Player'}
                     </h3>
-                    <span className="registered-pill">✓ Registered Account</span>
+                    {currentUser ? (
+                      <span className="registered-pill">✓ Registered Account</span>
+                    ) : (
+                      <span className="unregistered-pill-tag">Unregistered Guest</span>
+                    )}
                   </div>
                 </div>
 
@@ -427,18 +438,38 @@ export default function AuthModal({
                 </div>
 
                 <p className="account-hint">
-                  Your progress is permanently secured and ranked on the Hall of Fame.
+                  {currentUser 
+                    ? "Your rating and match progress are permanently saved and ranked on the Hall of Fame." 
+                    : "You are playing as a guest. Register your username at any time to permanently save your rating progress across devices."}
                 </p>
               </div>
 
               <div className="account-actions-row">
+                {!currentUser && (
+                  <button 
+                    className="btn btn-primary btn-full" 
+                    onClick={() => { setMode('register'); setPassword(''); setError(''); }}
+                    style={{ marginBottom: '0.6rem' }}
+                  >
+                    <UserPlus size={16} />
+                    <span>Register & Save Elo</span>
+                  </button>
+                )}
                 <button 
                   className="btn btn-secondary btn-full logout-btn" 
-                  onClick={handleLogout}
+                  onClick={() => {
+                    if (currentUser) {
+                      handleLogout();
+                    } else {
+                      setMode('choose_name');
+                      setPassword('');
+                      setError('');
+                    }
+                  }}
                   disabled={loading}
                 >
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
-                  <span>Switch Name / Log Out</span>
+                  <span>{currentUser ? "Switch Name / Log Out" : "Change Name"}</span>
                 </button>
               </div>
             </div>
