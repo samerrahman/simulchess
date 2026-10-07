@@ -277,37 +277,50 @@ export default function GameArena({
     setTimeout(() => setCopiedCode(false), 2000);
   }
 
-  // Restart / Rematch
-  async function handleRematch() {
-    const initial = createInitialGameState();
-    // Keep updated playerMeta with new Elo ratings
-    const updatedMeta = { ...gameState.playerMeta };
-    if (eloResult) {
-      if (updatedMeta.w) updatedMeta.w.elo = eloResult.newWhiteElo;
-      if (updatedMeta.b) updatedMeta.b.elo = eloResult.newBlackElo;
-    }
+  // Rematch mutual agreement logic
+  const myRematchOffer = gameState.rematchOffers ? !!gameState.rematchOffers[myColor] : false;
+  const enemyRematchOffer = gameState.rematchOffers ? !!gameState.rematchOffers[enemyColor] : false;
 
-    await update(ref(db, `games/${roomId}`), {
-      board: initial.board,
-      castlingRights: initial.castlingRights,
-      enPassantTarget: null,
-      turnCount: 1,
-      status: 'playing',
-      submitted: { w: false, b: false },
-      pendingMoves: { w: null, b: null },
-      capturedPieces: { w: [], b: [] },
-      lastEvents: [],
-      history: [],
-      eloProcessed: false,
-      eloSummary: null,
-      playerMeta: updatedMeta
-    });
-    setStagedInfo({ turn: 1, move: null });
-    setEloResult(null);
+  async function handleOfferRematch() {
+    if (isSpectator || !roomId) return;
+
+    // If opponent already requested rematch, accepting starts the new game!
+    if (enemyRematchOffer) {
+      const initial = createInitialGameState();
+      const updatedMeta = { ...gameState.playerMeta };
+      if (eloResult) {
+        if (updatedMeta.w) updatedMeta.w.elo = eloResult.newWhiteElo;
+        if (updatedMeta.b) updatedMeta.b.elo = eloResult.newBlackElo;
+      }
+
+      await update(ref(db, `games/${roomId}`), {
+        board: initial.board,
+        castlingRights: initial.castlingRights,
+        enPassantTarget: null,
+        turnCount: 1,
+        status: 'playing',
+        submitted: { w: false, b: false },
+        pendingMoves: { w: null, b: null },
+        capturedPieces: { w: [], b: [] },
+        lastEvents: [],
+        history: [],
+        eloProcessed: false,
+        eloSummary: null,
+        rematchOffers: { w: false, b: false },
+        playerMeta: updatedMeta
+      });
+      setStagedInfo({ turn: 1, move: null });
+      setEloResult(null);
+    } else {
+      // Otherwise record my offer in Firebase
+      await update(ref(db, `games/${roomId}/rematchOffers`), {
+        [myColor]: true
+      });
+    }
   }
 
   const isGameOver = ['w_won', 'b_won', 'draw'].includes(gameState.status);
-  const isWaiting = gameState.status === 'waiting';
+  const isWaiting = gameState.status === 'waiting' || !gameState.players?.[enemyColor];
 
   const myCaptured = (gameState.capturedPieces && gameState.capturedPieces[enemyColor]) || [];
   const enemyCaptured = (gameState.capturedPieces && gameState.capturedPieces[myColor]) || [];
@@ -319,8 +332,11 @@ export default function GameArena({
   const opponentMeta = enemyColor === 'w' ? whiteMeta : blackMeta;
   const selfMeta = myColor === 'w' ? whiteMeta : blackMeta;
 
-  const opponentDisplayName = opponentMeta?.username || (enemyColor === 'w' ? 'White' : 'Black');
-  const opponentElo = opponentMeta?.elo || 1200;
+  const hasOpponent = !isWaiting && !!gameState.players?.[enemyColor];
+  const opponentDisplayName = hasOpponent 
+    ? (opponentMeta?.username || (enemyColor === 'w' ? 'White' : 'Black'))
+    : 'Waiting for opponent...';
+  const opponentElo = hasOpponent ? (opponentMeta?.elo || null) : null;
 
   const myDisplayName = selfMeta?.username || (userProfile?.username || (myColor === 'w' ? 'White' : 'Black'));
   const myElo = selfMeta?.elo || (userProfile?.elo || 1200);
@@ -398,9 +414,11 @@ export default function GameArena({
                   <span className="player-name">
                     {opponentDisplayName}
                   </span>
-                  <span className="player-elo-badge">
-                    {opponentElo}
-                  </span>
+                  {opponentElo && (
+                    <span className="player-elo-badge">
+                      {opponentElo}
+                    </span>
+                  )}
                 </div>
                 <span className="player-status-text">
                   {isWaiting ? (
@@ -675,8 +693,19 @@ export default function GameArena({
             )}
 
             <div className="modal-actions">
-              <button className="btn btn-primary btn-lg" onClick={handleRematch}>
-                <RotateCcw size={18} /> Rematch
+              <button 
+                className={`btn btn-lg ${myRematchOffer ? 'btn-secondary' : 'btn-primary'}`} 
+                onClick={handleOfferRematch}
+                disabled={myRematchOffer}
+              >
+                <RotateCcw size={18} />
+                <span>
+                  {myRematchOffer
+                    ? "Rematch Offered (Waiting for Opponent...)"
+                    : enemyRematchOffer
+                    ? "Accept Rematch!"
+                    : "Offer Rematch"}
+                </span>
               </button>
               <button className="btn btn-secondary btn-lg" onClick={onLeaveRoom}>
                 <ArrowLeft size={18} /> Back to Lobby

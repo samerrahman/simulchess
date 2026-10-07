@@ -10,12 +10,15 @@ import {
   Edit2, 
   Check, 
   Sparkles, 
-  X 
+  X,
+  User
 } from 'lucide-react';
 import GameArena from './GameArena';
 import HowToPlayModal from './HowToPlayModal';
 import LeaderboardModal from './LeaderboardModal';
-import { db } from './firebase';
+import AuthModal from './AuthModal';
+import { auth, db } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { 
   ref, 
   get, 
@@ -38,6 +41,8 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('');
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
 
   // Player profile state
   const [profile, setProfile] = useState(null);
@@ -47,7 +52,7 @@ export default function App() {
   const [queueKey, setQueueKey] = useState(null);
   
   // Persistent anonymous player ID across page reloads in this browser tab
-  const [userId] = useState(() => {
+  const [anonUserId] = useState(() => {
     let saved = sessionStorage.getItem('simulchess_user_id');
     if (!saved) {
       saved = 'user_' + Math.random().toString(36).substring(2, 9);
@@ -55,6 +60,17 @@ export default function App() {
     }
     return saved;
   });
+
+  // Effective userId: auth UID if signed in, otherwise anonUserId
+  const userId = authUser ? authUser.uid : anonUserId;
+
+  // Listen to Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Load and refresh player profile
   const refreshProfile = useCallback(async () => {
@@ -436,14 +452,25 @@ export default function App() {
               </div>
             )}
 
-            <button 
-              className="btn btn-secondary btn-sm leaderboard-btn" 
-              onClick={() => setShowLeaderboard(true)}
-              title="View Hall of Fame Leaderboard"
-            >
-              <Trophy size={16} className="trophy-gold" />
-              <span>Leaderboard</span>
-            </button>
+            <div className="lobby-top-actions">
+              <button 
+                className="btn btn-secondary btn-sm leaderboard-btn" 
+                onClick={() => setShowLeaderboard(true)}
+                title="View Hall of Fame Leaderboard"
+              >
+                <Trophy size={16} className="trophy-gold" />
+                <span>Leaderboard</span>
+              </button>
+
+              <button 
+                className="btn btn-secondary btn-sm auth-btn" 
+                onClick={() => setShowAuthModal(true)}
+                title={authUser ? `Signed in as ${authUser.email}` : "Sign In or Register"}
+              >
+                <User size={16} />
+                <span>{authUser ? "Account" : "Sign In"}</span>
+              </button>
+            </div>
           </div>
 
           <div className="lobby-header">
@@ -540,6 +567,15 @@ export default function App() {
           isOpen={showLeaderboard}
           onClose={() => setShowLeaderboard(false)}
           currentUserId={userId}
+        />
+
+        <AuthModal 
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          currentUser={authUser}
+          onAuthSuccess={() => {
+            refreshProfile();
+          }}
         />
       </div>
     );

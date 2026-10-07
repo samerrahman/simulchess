@@ -436,8 +436,8 @@ body {
 
 .arena-main-content {
   display: grid;
-  grid-template-columns: minmax(320px, 560px) minmax(280px, 420px);
-  gap: 2rem;
+  grid-template-columns: minmax(360px, 660px) minmax(300px, 440px);
+  gap: 2.5rem;
   justify-content: center;
   align-items: start;
 }
@@ -449,7 +449,7 @@ body {
 .board-section {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.85rem;
   width: 100%;
 }
 
@@ -459,8 +459,8 @@ body {
   justify-content: space-between;
   background-color: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 0.625rem;
-  padding: 0.65rem 1rem;
+  border-radius: 0.75rem;
+  padding: 0.8rem 1.25rem;
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
@@ -472,17 +472,17 @@ body {
 .player-meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .player-avatar {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
@@ -508,12 +508,12 @@ body {
 }
 
 .player-name {
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .player-status-text {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
 }
 
@@ -557,13 +557,13 @@ body {
 .captured-tray {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
-  min-height: 24px;
+  gap: 0.2rem;
+  min-height: 28px;
 }
 
 .captured-mini-piece {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   display: inline-block;
   opacity: 0.85;
 }
@@ -578,9 +578,9 @@ body {
 
 .native-chessboard-wrapper {
   width: 100%;
-  max-width: 560px;
+  max-width: 660px;
   margin: 0 auto;
-  border-radius: 0.5rem;
+  border-radius: 0.65rem;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
   border: 2px solid var(--board-border);
@@ -1614,13 +1614,128 @@ body {
 }
 
 /* =========================================================
+   AUTH MODAL & LOBBY TOP ACTIONS
+   ========================================================= */
+
+.lobby-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.auth-btn {
+  gap: 0.4rem;
+}
+
+.auth-modal {
+  max-width: 420px;
+}
+
+.auth-modal-body {
+  padding: 1rem 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.auth-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.auth-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.auth-submit-btn {
+  margin-top: 0.5rem;
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.auth-toggle-row {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.auth-link-btn {
+  background: none;
+  border: none;
+  color: #60a5fa;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-size: inherit;
+}
+
+.auth-link-btn:hover {
+  color: #93c5fd;
+}
+
+.auth-error {
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
+  gap: 0.5rem;
+}
+
+.account-details-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.5rem 0;
+}
+
+.account-welcome {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.account-email-pill {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  padding: 0.65rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.account-hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.logout-btn {
+  margin-top: 0.5rem;
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.logout-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* =========================================================
    RESPONSIVENESS
    ========================================================= */
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .arena-main-content {
     grid-template-columns: 1fr;
-    max-width: 560px;
+    max-width: 660px;
     margin: 0 auto;
   }
 
@@ -1644,8 +1759,12 @@ body {
     gap: 0.75rem;
   }
 
-  .leaderboard-btn {
+  .lobby-top-actions {
     width: 100%;
+  }
+
+  .leaderboard-btn, .auth-btn {
+    flex: 1;
     justify-content: center;
   }
 
