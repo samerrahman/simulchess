@@ -1,8 +1,136 @@
 import { ref, get, set, update, query, orderByChild, limitToLast } from 'firebase/database';
-import { db } from './firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { db, auth } from './firebase';
 
 const DEFAULT_ELO = 1200;
 const K_FACTOR = 32;
+
+/**
+ * Normalizes a username for unique indexing (alphanumeric + underscores, lowercase).
+ */
+export function normalizeUsername(username) {
+  return (username || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+}
+
+/**
+ * Checks whether a username is available, taken, or registered in Firebase RTDB.
+ */
+export async function checkUsernameStatus(rawUsername) {
+  const clean = normalizeUsername(rawUsername);
+  if (!clean || clean.length < 2) {
+    return { valid: false, message: 'Username must be at least 2 characters.' };
+  }
+  if (clean.length > 18) {
+    return { valid: false, message: 'Username cannot exceed 18 characters.' };
+  }
+
+  try {
+    const userSnap = await get(ref(db, `usernames/${clean}`));
+    if (userSnap.exists()) {
+      const data = userSnap.val();
+      return {
+        valid: true,
+        exists: true,
+        isRegistered: Boolean(data.isRegistered),
+        uid: data.uid || null,
+        email: data.email || null,
+        displayName: data.username || rawUsername.trim()
+      };
+    }
+    return {
+      valid: true,
+      exists: false,
+      isRegistered: false,
+      displayName: rawUsername.trim()
+    };
+  } catch (err) {
+    console.error("Error checking username:", err);
+    return { valid: true, exists: false, isRegistered: false, displayName: rawUsername.trim() };
+  }
+}
+
+/**
+ * Signs in using a registered username and password (Showdown style).
+ */
+export async function loginWithUsername(rawUsername, password) {
+  const clean = normalizeUsername(rawUsername);
+  const status = await checkUsernameStatus(rawUsername);
+  if (!status.exists || !status.isRegistered) {
+    throw new Error(`The username "${rawUsername}" is not registered.`);
+  }
+
+  const email = status.email || `${clean}@simulchess.app`;
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred.user;
+}
+
+/**
+ * Registers an unregistered username with a password, permanently saving
+ * the player's current session Elo, match record, and claim on the name.
+ */
+export async function registerUsernameWithAuth(rawUsername, password, currentSessionProfile = null, optionalEmail = null) {
+  const clean = normalizeUsername(rawUsername);
+  if (!clean || clean.length < 2) {
+    throw new Error('Username must be at least 2 alphanumeric characters.');
+  }
+  if (clean.length > 18) {
+    throw new Error('Username cannot exceed 18 characters.');
+  }
+  if (!password || password.length < 6) {
+    throw new Error('Password must be at least 6 characters.');
+  }
+
+  const status = await checkUsernameStatus(rawUsername);
+  if (status.exists && status.isRegistered) {
+    throw new Error(`The name "${rawUsername}" is already registered. Please enter your password to log in.`);
+  }
+
+  const authEmail = optionalEmail?.trim() || `${clean}@simulchess.app`;
+  const cred = await createUserWithEmailAndPassword(auth, authEmail, password);
+  const user = cred.user;
+
+  try {
+    await updateProfile(user, { displayName: rawUsername.trim() });
+  } catch (e) {
+    console.warn("Could not set displayName on auth user:", e);
+  }
+
+  // Claim username registry in RTDB
+  await set(ref(db, `usernames/${clean}`), {
+    uid: user.uid,
+    username: rawUsername.trim(),
+    email: authEmail,
+    isRegistered: true,
+    createdAt: Date.now()
+  });
+
+  // Transfer/initialize player's registered profile preserving current session Elo!
+  const eloToKeep = Number(currentSessionProfile?.elo) || DEFAULT_ELO;
+  const winsToKeep = Number(currentSessionProfile?.wins) || 0;
+  const lossesToKeep = Number(currentSessionProfile?.losses) || 0;
+  const drawsToKeep = Number(currentSessionProfile?.draws) || 0;
+  const gamesToKeep = Number(currentSessionProfile?.gamesPlayed) || (winsToKeep + lossesToKeep + drawsToKeep);
+
+  const registeredProfile = {
+    userId: user.uid,
+    username: rawUsername.trim(),
+    elo: eloToKeep,
+    wins: winsToKeep,
+    losses: lossesToKeep,
+    draws: drawsToKeep,
+    gamesPlayed: gamesToKeep,
+    isRegistered: true,
+    email: authEmail,
+    createdAt: currentSessionProfile?.createdAt || Date.now(),
+    registeredAt: Date.now()
+  };
+
+  await set(ref(db, `users/${user.uid}`), registeredProfile);
+  localStorage.setItem(`simulchess_name_${user.uid}`, rawUsername.trim());
+  localStorage.setItem('simulchess_chosen_username', rawUsername.trim());
+
+  return { user, profile: registeredProfile };
+}
 
 /**
  * Computes the Elo change for both players.
@@ -33,8 +161,8 @@ export function calculateEloDelta(whiteElo, blackElo, outcome) {
 /**
  * Gets or initializes a player's profile in Firebase and localStorage.
  */
-export async function getOrCreateProfile(userId, isAuthUser = false, email = null) {
-  const localName = localStorage.getItem(`simulchess_name_${userId}`);
+export async function getOrCreateProfile(userId, isAuthUser = false, email = null, preferredUsername = null) {
+  const localName = preferredUsername || localStorage.getItem(`simulchess_name_${userId}`) || localStorage.getItem('simulchess_chosen_username');
   const userRef = ref(db, `users/${userId}`);
 
   try {
@@ -47,6 +175,19 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
           isRegistered: true,
           ...(email ? { email } : {})
         });
+      }
+      // If signed in, ensure the username registry is updated
+      if (isAuthUser && data.username) {
+        const clean = normalizeUsername(data.username);
+        if (clean) {
+          set(ref(db, `usernames/${clean}`), {
+            uid: userId,
+            username: data.username,
+            email: email || data.email || `${clean}@simulchess.app`,
+            isRegistered: true,
+            createdAt: data.createdAt || Date.now()
+          }).catch(() => {});
+        }
       }
       return {
         userId,
@@ -73,6 +214,18 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
         createdAt: Date.now()
       };
       await set(userRef, initialProfile);
+      if (isAuthUser && initialProfile.username) {
+        const clean = normalizeUsername(initialProfile.username);
+        if (clean) {
+          set(ref(db, `usernames/${clean}`), {
+            uid: userId,
+            username: initialProfile.username,
+            email: email || `${clean}@simulchess.app`,
+            isRegistered: true,
+            createdAt: Date.now()
+          }).catch(() => {});
+        }
+      }
       return initialProfile;
     }
   } catch (err) {

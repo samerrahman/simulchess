@@ -8,10 +8,11 @@ import {
   HelpCircle, 
   Trophy, 
   Edit2, 
-  Check, 
   Sparkles, 
-  X,
-  User
+  User,
+  ShieldCheck,
+  UserPlus,
+  AlertCircle
 } from 'lucide-react';
 import GameArena from './GameArena';
 import HowToPlayModal from './HowToPlayModal';
@@ -42,12 +43,12 @@ export default function App() {
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState('choose_name');
+  const [pendingAction, setPendingAction] = useState(null);
   const [authUser, setAuthUser] = useState(null);
 
   // Player profile state
   const [profile, setProfile] = useState(null);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editNameVal, setEditNameVal] = useState('');
   const [isSearchingMatch, setIsSearchingMatch] = useState(false);
   const [queueKey, setQueueKey] = useState(null);
   
@@ -77,21 +78,11 @@ export default function App() {
     const isAuth = Boolean(authUser);
     const prof = await getOrCreateProfile(userId, isAuth, authUser?.email);
     setProfile(prof);
-    setEditNameVal(prof.username);
   }, [userId, authUser]);
 
   useEffect(() => {
     refreshProfile();
   }, [refreshProfile]);
-
-  // Save new username
-  async function handleSaveUsername(e) {
-    if (e) e.preventDefault();
-    if (!editNameVal.trim()) return;
-    await updateUsername(userId, editNameVal.trim());
-    setIsEditingName(false);
-    refreshProfile();
-  }
 
   // Join a room by ID and assign color
   const joinRoomById = useCallback(async (targetRoomId, shouldPushHistory = true) => {
@@ -182,14 +173,26 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [roomId, joinRoomById]);
 
+  // Check if player has an authenticated account or chosen username
+  const hasChosenName = Boolean(
+    authUser || 
+    (localStorage.getItem('simulchess_chosen_username') && profile?.username && !profile.username.startsWith('Player_'))
+  );
+
   // Check URL query parameters on initial page mount (e.g. ?room=ABCDEF)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
     if (roomParam) {
-      joinRoomById(roomParam, false);
+      if (!hasChosenName) {
+        setPendingAction({ type: 'join_room', roomId: roomParam });
+        setAuthModalMode('choose_name');
+        setShowAuthModal(true);
+      } else {
+        joinRoomById(roomParam, false);
+      }
     }
-  }, [joinRoomById]);
+  }, [joinRoomById, hasChosenName]);
 
   // Claim empty seat
   const claimSeat = useCallback(async (seatColor) => {
@@ -253,15 +256,16 @@ export default function App() {
     return () => unsub();
   }, [roomId, color, userId, claimSeat]);
 
-  // Create Private Room
-  async function handleCreatePrivate() {
+  // Execute Private Room Creation
+  const executeCreatePrivate = useCallback(async (customProf = null) => {
     setLoadingMsg("Creating room...");
     setErrorMsg('');
     try {
       const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const initialGame = createInitialGameState();
-      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
-      const myElo = profile?.elo || 1200;
+      const activeProf = customProf || profile;
+      const myName = activeProf?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+      const myElo = activeProf?.elo || 1200;
 
       initialGame.players = { w: userId, b: null };
       initialGame.playerMeta = {
@@ -280,10 +284,10 @@ export default function App() {
     } finally {
       setLoadingMsg('');
     }
-  }
+  }, [userId, profile]);
 
-  // Find Public Match
-  async function handleFindPublic() {
+  // Execute Public Matchmaking
+  const executeFindPublic = useCallback(async (customProf = null) => {
     setIsSearchingMatch(true);
     setLoadingMsg("Finding match...");
     setErrorMsg('');
@@ -291,8 +295,9 @@ export default function App() {
     try {
       let targetGameId = null;
       let assignedColor = 'spectator';
-      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
-      const myElo = profile?.elo || 1200;
+      const activeProf = customProf || profile;
+      const myName = activeProf?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+      const myElo = activeProf?.elo || 1200;
 
       const queueRef = ref(db, 'queue');
       const snap = await get(queueRef);
@@ -372,6 +377,28 @@ export default function App() {
     } finally {
       setLoadingMsg('');
     }
+  }, [userId, profile]);
+
+  // Create Private Room (guards for chosen username)
+  function handleCreatePrivate() {
+    if (!hasChosenName) {
+      setPendingAction('create_room');
+      setAuthModalMode('choose_name');
+      setShowAuthModal(true);
+      return;
+    }
+    executeCreatePrivate();
+  }
+
+  // Find Public Match (guards for chosen username)
+  function handleFindPublic() {
+    if (!hasChosenName) {
+      setPendingAction('find_match');
+      setAuthModalMode('choose_name');
+      setShowAuthModal(true);
+      return;
+    }
+    executeFindPublic();
   }
 
   // Cancel Matchmaking
@@ -388,12 +415,66 @@ export default function App() {
     }
   }
 
-  // Join Room from input form
+  // Join Room from input form (guards for chosen username)
   function handleJoinSubmit(e) {
     e.preventDefault();
     if (!inputRoomId.trim()) return;
+    if (!hasChosenName) {
+      setPendingAction({ type: 'join_room', roomId: inputRoomId.trim() });
+      setAuthModalMode('choose_name');
+      setShowAuthModal(true);
+      return;
+    }
     joinRoomById(inputRoomId, true);
   }
+
+  // Handle setting unregistered username
+  const handleChooseUnregisteredName = useCallback(async (newName) => {
+    localStorage.setItem('simulchess_chosen_username', newName);
+    localStorage.setItem(`simulchess_name_${userId}`, newName);
+    await updateUsername(userId, newName);
+    const updated = await getOrCreateProfile(userId, Boolean(authUser), authUser?.email, newName);
+    setProfile(updated);
+    setShowAuthModal(false);
+
+    if (pendingAction === 'find_match') {
+      setPendingAction(null);
+      executeFindPublic(updated);
+    } else if (pendingAction === 'create_room') {
+      setPendingAction(null);
+      executeCreatePrivate(updated);
+    } else if (pendingAction?.type === 'join_room') {
+      const targetRoom = pendingAction.roomId;
+      setPendingAction(null);
+      joinRoomById(targetRoom, true);
+    }
+  }, [userId, authUser, pendingAction, executeFindPublic, executeCreatePrivate, joinRoomById]);
+
+  // Handle successful auth or logout
+  const handleAuthSuccess = useCallback(async (user) => {
+    setAuthUser(user);
+    if (user) {
+      const prof = await getOrCreateProfile(user.uid, true, user.email);
+      setProfile(prof);
+    } else {
+      localStorage.removeItem('simulchess_chosen_username');
+      const prof = await getOrCreateProfile(anonUserId, false, null);
+      setProfile(prof);
+    }
+    setShowAuthModal(false);
+
+    if (pendingAction === 'find_match') {
+      setPendingAction(null);
+      executeFindPublic();
+    } else if (pendingAction === 'create_room') {
+      setPendingAction(null);
+      executeCreatePrivate();
+    } else if (pendingAction?.type === 'join_room') {
+      const targetRoom = pendingAction.roomId;
+      setPendingAction(null);
+      joinRoomById(targetRoom, true);
+    }
+  }, [anonUserId, pendingAction, executeFindPublic, executeCreatePrivate, joinRoomById]);
 
   // Leave room and return to lobby
   function handleLeaveRoom() {
@@ -415,31 +496,52 @@ export default function App() {
           {/* Top Bar inside Lobby: Profile & Leaderboard trigger */}
           <div className="lobby-top-bar">
             {profile && (
-              <div className="user-profile-badge">
+              <div className="user-profile-badge showdown-profile-badge">
                 <div className="user-profile-main">
-                  {isEditingName ? (
-                    <form onSubmit={handleSaveUsername} className="edit-name-form">
-                      <input 
-                        type="text" 
-                        value={editNameVal} 
-                        onChange={(e) => setEditNameVal(e.target.value)}
-                        maxLength={18}
-                        className="input-field input-xs"
-                        autoFocus
-                      />
-                      <button type="submit" className="btn-icon btn-save-name" title="Save">
-                        <Check size={14} />
+                  <div className="profile-name-tag-row">
+                    {authUser ? (
+                      <div 
+                        className="profile-name-tag showdown-name-registered" 
+                        onClick={() => { setAuthModalMode('account'); setShowAuthModal(true); }}
+                        title="Click to view account"
+                      >
+                        <ShieldCheck size={14} className="text-accent" />
+                        <span className="profile-username">{profile.username}</span>
+                        <span className="badge-registered-tag">✓</span>
+                      </div>
+                    ) : hasChosenName ? (
+                      <div className="unregistered-name-group">
+                        <div 
+                          className="profile-name-tag showdown-name-unregistered"
+                          onClick={() => { setAuthModalMode('choose_name'); setShowAuthModal(true); }}
+                          title="Click to change name"
+                        >
+                          <span className="profile-username">{profile.username}</span>
+                          <span className="unregistered-pill-tag">Unregistered</span>
+                          <Edit2 size={11} className="edit-icon-subtle" />
+                        </div>
+                        <button 
+                          type="button" 
+                          className="btn btn-primary btn-xs btn-claim-name"
+                          onClick={() => { setAuthModalMode('register'); setShowAuthModal(true); }}
+                          title="Claim this username and secure your Elo"
+                        >
+                          <UserPlus size={12} />
+                          <span>Register</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-xs btn-choose-name-top"
+                        onClick={() => { setAuthModalMode('choose_name'); setShowAuthModal(true); }}
+                      >
+                        <Sparkles size={12} className="text-amber" />
+                        <span>Choose Name</span>
                       </button>
-                      <button type="button" className="btn-icon" onClick={() => setIsEditingName(false)} title="Cancel">
-                        <X size={14} />
-                      </button>
-                    </form>
-                  ) : (
-                    <div className="profile-name-tag" onClick={() => setIsEditingName(true)} title="Click to rename">
-                      <span className="profile-username">{profile.username}</span>
-                      <Edit2 size={12} className="edit-icon-subtle" />
-                    </div>
-                  )}
+                    )}
+                  </div>
+
                   <div className="profile-stats-row">
                     <span className="profile-elo-pill">
                       <Sparkles size={11} className="text-amber" />
@@ -465,11 +567,20 @@ export default function App() {
 
               <button 
                 className="btn btn-secondary btn-sm auth-btn" 
-                onClick={() => setShowAuthModal(true)}
-                title={authUser ? `Signed in as ${authUser.email}` : "Sign In or Register"}
+                onClick={() => {
+                  if (authUser) {
+                    setAuthModalMode('account');
+                  } else if (hasChosenName) {
+                    setAuthModalMode('register');
+                  } else {
+                    setAuthModalMode('choose_name');
+                  }
+                  setShowAuthModal(true);
+                }}
+                title={authUser ? `Signed in as ${authUser.displayName || authUser.email}` : "Sign In or Register"}
               >
-                <User size={16} />
-                <span>{authUser ? "Account" : "Sign In"}</span>
+                {authUser ? <ShieldCheck size={16} className="text-accent" /> : <User size={16} />}
+                <span>{authUser ? "Account" : hasChosenName ? "Register" : "Choose name"}</span>
               </button>
             </div>
           </div>
@@ -483,6 +594,40 @@ export default function App() {
               Real-time simultaneous multiplayer chess.
             </p>
           </div>
+
+          {/* Pokémon Showdown-style Identity Alert Banners */}
+          {!hasChosenName ? (
+            <div className="showdown-callout-banner choose-name-callout">
+              <div className="callout-text-group">
+                <Sparkles size={16} className="text-amber" />
+                <span>Choose a username to start playing rated matches.</span>
+              </div>
+              <button 
+                type="button"
+                className="btn btn-primary btn-xs"
+                onClick={() => { setAuthModalMode('choose_name'); setShowAuthModal(true); }}
+              >
+                Choose Name
+              </button>
+            </div>
+          ) : !authUser ? (
+            <div className="showdown-callout-banner unregistered-callout">
+              <div className="callout-text-group">
+                <AlertCircle size={16} className="text-amber" />
+                <span>
+                  Playing as <strong>{profile?.username}</strong> (unregistered). Progress won't be saved unless you register!
+                </span>
+              </div>
+              <button 
+                type="button"
+                className="btn btn-secondary btn-xs btn-callout-register"
+                onClick={() => { setAuthModalMode('register'); setShowAuthModal(true); }}
+              >
+                <UserPlus size={13} />
+                <span>Register to save Elo</span>
+              </button>
+            </div>
+          ) : null}
 
           {loadingMsg && (
             <div className="alert-box alert-info">
@@ -571,17 +716,22 @@ export default function App() {
           currentUser={authUser}
           onOpenAuth={() => {
             setShowLeaderboard(false);
+            setAuthModalMode(hasChosenName ? 'register' : 'choose_name');
             setShowAuthModal(true);
           }}
         />
 
         <AuthModal 
           isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          currentUser={authUser}
-          onAuthSuccess={() => {
-            refreshProfile();
+          onClose={() => {
+            setShowAuthModal(false);
+            setPendingAction(null);
           }}
+          currentUser={authUser}
+          userProfile={profile}
+          initialMode={authModalMode}
+          onChooseUnregisteredName={handleChooseUnregisteredName}
+          onAuthSuccess={handleAuthSuccess}
         />
       </div>
     );
