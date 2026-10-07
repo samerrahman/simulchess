@@ -245,12 +245,6 @@ export default function AuthModal({
                   )}
                 </button>
               </div>
-
-              <div className="showdown-notice-box">
-                <p>
-                  <strong>Tip:</strong> If the name is registered, you will be prompted for your password. If unregistered, you can play immediately!
-                </p>
-              </div>
             </form>
           )}
 
