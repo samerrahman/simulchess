@@ -1,106 +1,42 @@
 import React from 'react';
 
-/**
- * Official Tournament Standard Chess Pieces (C. Burnett Vector Set)
- * The global standard used on Lichess, Wikipedia, and chess engines.
- */
+// Exact sprite piece set provided by user (embedded as crisp data URIs for zero latency and instant loading)
+const PIECE_IMAGES = {
+  "w_k": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAACPklEQVR4nO1Y0Y3bMAx9CbpBv++nAxxugAJhNukmlm+hG0Ey0AU6SGfQgYbo0IrsWLIcJIEfYFBxJOqFfmRoATt27HhZvAH4AvALTwQC4IOtjkNlf58A3gH8BPAbwF8A/wH8A9DU2uRYy9ErgLaUxxFPiONGfj+C/YMngeeLiHobroeGZZLWWs9gG0hbPHLyGWO8hiJO967TFNXZLlij7vG48f5aDYdDv80ZgMvwt/6Ri04jrXq1EVufAi7zKMNfHY3GYCmozZJzlTy8EE3543vKXzFxk9LoLfIxobnvUlhDPJlUSzbjSKaibBcQThDPSt5JfS7ZTH6sfLYZhAUl0bY6YjmQxBKb87Q0wnp7F9IMnXiloBnSm/QexpiRLYFzTtfvRaRbXhQWZuN0Oo1sLtq2RSmKJSJVoyQB7aXiFD2m7LJXgzQWdIa3eo++nyAiWHudEyKfruuGcUpSRNRfIhkZx75YFmG97lOySQ/E+4Ex/abK+YiYtjEhF80XXzyf/YWk5Uks6LJkmiB/1UPkSsAYM/prVw2T3eIIoe/QOCJN08xKJcZpQhIqwm3NtjQmPXorSbSVNy8iGpK79AUhO9IcMYmq1rHU5ClNd+EJaH0rX7OJtzrS0riXlLOZXnzbSHPpk2iuLXnOOZzP5+xI/8ggPRCcK3mpfsM5d3V/TV9SctRVteRhw+MzwfBSWtonM3htSX1ec9Qrz7VJ6TWFLq354n+/tefTox9wAy7YLozdoxyqT2nTVd5nx46XwjckEYUgBpsY2gAAAABJRU5ErkJggg==",
+  "w_q": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAACnElEQVR4nO1YC27DIAxl0+4VdrKQk4WeLJMZZsaxwTR02qQ8KWoLAR7PH0ydu3HjhhXe/TOyu3PuyM+fIE8JBaH/8N4fIYT0md/XNiaNnw5Y5Nj3PZESlITvqQ+gvAPA9l+xRgD1EFlJrtbOlIanmgPaELlfssYQWqYrSoLaioukdwgZruIukA5X3adnuqRURyF8R924q59RDk+Zbu9MFgxmP1qitDi8swGLMPmjsfA62I5AC8T8XOFgMh1PexJ644+GJbocuNKw6zfn3MYmacFLv0Mo7iyZ3zIfWuGz8/5pctWnIZ0ph0fxSSUYAx5AnXhRN8eVpohk5+IE67piv2gN773koyuxAke4etBw3/JcaSW6y4koqBnQCorSpjTXVZqosjbU9Ma+taMyXS8+QzoNjDHiRKKbZBfB/m9/WL49Aj9dw8UI4dVC2ILiBqyOKO3M1NXBwIIx0D7mHtylLlV/ZSFSa+ycNKnmqrqCkTuQWGujvcxhDkYgzMilRRFkQxUxZqFDa8cxjSJsyKdP/puDq96Z92I79gG0AIR+jIvH42Hy6Y9WJw6GyXBx+ITgBGzbVr6XATGe2pA0ttM5APCdbbpJGo7sHqSauIKmsoQobIjOk9JV5+juKV1NCA9JY0NkJQA/4hLoQs2Kzorq3vcqhJ8g72YOi3tUyR+DhpuZKtbCIlgKYiOrvM2+odMa+hVPsBKxKk0vm0mVZ307EguBdUi2GeEyhNOJdxXuiRPQnD0ywHE9+CBAytEaPLGGYBnpXjjXPbTFe24S2YFCu0avVcN/ic1EqIutqXhprvb6ffESTnXyTAT9j8pLVd7Ci5yZWOobzrRAPAWhISNUiLZMY+IzmtD53wU0VfVUikoKpe2vMeWNGzfcdHwBMK8MUlY0r0QAAAAASUVORK5CYII=",
+  "w_b": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAABv0lEQVR4nO2YAW6DMAxFvWr3wjsZ3skcTtbJCA83CoE4LQkSX6K0RdCX328HAnDr1q2jQriQCACeZpPP/QMj4pOZn0Sk4Ai9Q1vJAACAoWOxQFpdISIokBILicficvfQsETBFmLX0UAFFodNEXbr9kvXsIrgCXoCFricaIWnSwD3BL4JLBGRY3FURK0nnE2Hc9AtJ5yky/JZgLQ/63uO4HVQXrcfTugBEWEcR9fJiDhvAOC7gFPZ4tuLR21EvE4f0uJm7tip8YAQQhaI+XN19nCet018wGUz6F9ocTfnETWcZNgDzmu7cwN/VYKTtq29OESxkJcfcKq2ewQH8OlZjjX32xLh+jQDLZymEpdVZhZ13zB9Q6XkL8/17IzGI63z3U6PpS5Hwi6WCwr7NDdd/hIIXTbY6s38uqTQ/LErXrvb27g2Gp7JBTOF9X9M8m4KNCz7KVF8rmLcA+TEAszmZp9UNDZQ9i9QjdNkO4Tuh2FIjy7qJOJy6rtY0yTmryIiO2tSCfQMLBdQyPjiKSlUDEcrSFb2t5Zz5P4kHIXWWJQqRPcWavXgLL6k23uFSAbk7QWTEJrBhZN+89atW+DQHydNBPACRoPaAAAAAElFTkSuQmCC",
+  "w_n": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAABmklEQVR4nO2YgW6EIAyGm2XvZX0y+2ZlT7YFZpFjm2Ap6BK+hJw51Pv9bUs5gMlkMhkJAgD9MUcnc7cK/txHLo6SOX/es0QjYi48CCYimWN4mmhmToWzCPYkoulJjrMX5oWLs34Iidv5oDtFR1dLyIMR0a3iQ+xqoFfxw2I+Jpt30A8NzJy6jt0TMH/VWniQ8BgWaXK1gh3LYwyLVHRtMlY6bp6cL67WxrPEfomkPGIXl69w5TowrijqMLhyLR3JXXT7rcJlFeu6hs9t26rOX5YFbnVZWxLRoJKoVr5sudZWEhzmciI4bATSJmqE6FgxFGVL8oA1oYUVIfJeSg5JqO9i8BPnXDzH55//aj/GW/plz5nTWceG+ZvSNFR03LM9CSVUTsLBpLbzEdf6LVV2o9wNslxBLZIx7PtkKyXHPQVblT3axYcHKGyXguCrZe43LLs+eQA8+1vBAhiwjzQVPEq0qeCaBabU5ZWgK52cFa2iNyICRPw3osm6Dx7l9HCXiw1TDUmzZIZz0nP1Ee1KP9DAR68bTyYTaOcLmOUg+y28VwsAAAAASUVORK5CYII=",
+  "w_r": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAABkUlEQVR4nO2XQU7DMBBFf60uu+gBWOQGbLtBOEfIETgIisNJuEG5gR1OYFizyBGClH3RJC2kFRWOM4Ya+UlpXOvXHk1nRjNAIpFIJC6ZxQStAnB7slcBMD9oXHWnmrMs3W3uL5FSyv6LMZ/nm3MaV535XsOCllLuDtAaAD169PT7Y1x0ctDQPrg9fcTIm19uBVCWpZcuFEee5kQG9PSVtRZFUYAbay29Mle9mHB207bt4QI2rLWgcwG8IRBUqnZKKZawUEodkpTODVKnx4aX47LmixlKXTXV6D9LSjkx+Xxj+mIQiBCBCBGIEIEIEYgQgQgRiBCBCBGIkOWcH4/GpCiMlvRR1zViQXG0p1prr7bUpzV9AHBPC8bWlHgEcIdA4XGTZRm4Jpj1et2/27YdFoHYcg+3cuirt1OM+LclrwJwvU+aDW3kec5tx2bvbcqxFxrn5iYijVZ91jVNg67rwM1qtQLlCmGMeQJQsCSi1l7j3CRyx3/Q2egAIeGNi9HPxpj3fUyHZgHg9RfuSSQSmMkHrzgF/m/QAl4AAAAASUVORK5CYII=",
+  "w_p": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAABQklEQVR4nO2YC46DMAxEZ6vei7lZzMkSTsYqKagrFBby23jVPClqi1pn5A6ODTAYDAYDzXw1iEkABsCyfRYoxotd/SIZXrdloZgg0lq77vj3moXLUXBEOKFR9Bl82UVdtq0XdgZemRaVN+GFPaTWZo9KcYJfl2Wvcm9i19T4WURO7SEiqixyKTginCpE34WVqkipp43I/X+cDElmT9HJm0/TlP3bqtXjh5BLlnclcb1E+43dPM/4b9jfTsIjUFL2mFHyBJ94uDwqCPZTCpyL31uH66Z3pkOGvadjjZJGi8hdL2sRLrmCe/YhYcNS+IfTTHGWWw4HZ1QRXJrtlJJX3X/GmD0uVfTOd0HGc5GUTE9bP1wVZsRMskcL0RvsMY1nw4xEPFO+7PuIlKY/EZYOB7GAa+PFFs+nWx+5rnH8wQBa+QZUJ3iMjgpPhgAAAABJRU5ErkJggg==",
+  "b_k": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAACTklEQVR4nO1Y0W3jMAx9CbpBv++nAxQdoEDUIfLfTUJ3iCzhj45ABegCHeRm8IGt6CiC1JiyUjQ9P0Cw40jkM/VM0gYWLFjwa/EHwCuAO1wRHIAhHJtj1djeC4B7ALcAHgG8AfgL4B3ArpWTNb4HK/zv8ljjCrG+kN2HcHy+Fq0Nl/azbmkMABuv/5iHrzRcK0c3BkJxnj2EIyVz0NBeEVO0xs45t9sdfRwOnz6IPnx0wRmdKSAdAC9zxJ5cUJsFe9VgZh4Uch7/FhCRbj+fkcfgnBsm2qsmTWpQnKUExLiMDPnsoGRualN+65xa4i4xMIlQaS7V2zI9vDTVyTliultksKWysUabrY5yxC0RRsaOKb9vt1suadlCvIYwIhvCwxzpsEXmEWeEmvV0jLRJHi7SlXnIDtVG2Z2utWUQlUgNcXVcIy9Fba42pb0WpPm0LlSDlLgYzBUELQq56qZg5rEY5W5EbzIi7Ob2HkJ8p31C13XYbDYI7cMI7/1JHxFjk5kvdmSN2JX/5Hy/3/u+77VHaYJjHY4ib5UAJeU/kt/k9LYyapwlIhrVkz9DJNOICnxhTejq5Di7syuSTnVY0vBX4KDvZAdMPYYp0s45Vg2mOtbz0i64sCbWt+haQERPLXU8Qh5sjVQuk9RWPcHFIx1HMtaxRDC+FsN7P2aVVN8hc5gibSIdXr3GNJUSq0l5/nPdZeSh/UjrlEcVzb4Jfd/zXC0juQGxiW+AvnnPJc21EZ77uUoLwpRvzz4cD+Hc/5RveaXI+cZ+Fiz4VfgHn+oE5tB4IlUAAAAASUVORK5CYII=",
+  "b_q": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAACsElEQVR4nO1YO47bMBCdXbjMDXKJNFtrArhP5Q3gUwS+gKl7pIxVxEWwKTaNAdLtbpHKTY7gMxhgMDJljBR+hjbtBQI9YCCRI44e58ORDTBixIj/Eu8AQAHADwD44sZvjkcAWDmh+yGeAMAyoXGujeKE7UD4Sx88epKHDBtJ3GeS/iScu6qN+8KhewWAn4M5GtN8DrI4pEInCS0V3i+n++opxMcC7+hh5Vmw8rz0j9PRKeGDcnod0K+d/sVDKMkhN6cJ3wGgcfdV4JnQfIeduz47exdBGprOkyTo0fP1PthIpJIchp6mXX9mniTsIQ+YGKvEeu75xvERR0NH8pJ7Wkd0vkjYhKf5ei8kOY2BFJDqlwNCMSj2fH0O6S27D50CPmKpIpTaOQs4CKWOpAAPpc3QqYjNWPSisAFDOqAbbpTrlGdeC5yQndNmMNaJ0Ma8UyXWijGBfISKKVWMmGEvWIQS+MJ2C1El0+NWMDHlncBAtCiuhLuYUtJc3srbRQuxB0T8576qjgfFdsv7E4AxpncN4KIiPHHhRYKIrWitbQwpvVKqldwizIGiF3AidE/SbYIkdiKge6YjO4RbLyIsKcQW6/Va73Y7FIZYDKVOPGvyTFHSLk30dDqFw+EAJWGODsjhIsd8Pv9tr4DFYvHtaqdH0zRP+/3+Q0lPTyYT2Gw27+FKCH3BlRCdQ0T8a1wphdZaINFatwVEws9p0c4RWyEbJM5mWy9SG9Lkb412LyQsl/2vSclpgoMN0hpqQHQ1RwMfS5Lmv936CndKdV0whbquY5sk0mXO0tlsduoq1FCoOaSaSUrQ01lLNxdExDY9yKM8zF2I+ThgAAi+9V0EjDEiPrkHeueJJU+LnGI0fZLtFPtIEqXGJV2I/99RsYiEiBo2lUXyljj7L4ARI+B8/AUJXHhIr6BmVAAAAABJRU5ErkJggg==",
+  "b_b": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAABUElEQVR4nO2YgY3DIAxFner2Ot9kkCWyRIYA5skQPhFdpCgq1DWpAR1fstq0on5yjW0AGBoa4gqhI1kAoJPF566AD8M7nTxAR6Zl6O/E56Fl6Bk6lbvkc3xuVvgEuOkqYjOwTYJzgakV8HeBqTZ4EhgRKSq+ZsCxRskzLTUccZStteSc2y3qeI/piKNmpFOdr+loU86YOU3ajYcFzawkanoJw4gyaUPn2vXH6/Xjv09zpNUVp0Lw6Ng4xysCIQSwdmf1APBT6xDgDxjN9JpKFhfu/qlGpEsnNZQu/JIujL3D+z07RFqWxazr6lUjPc9z0dywbRv2WPJcjZwuvcsI0NGRy5Vek0nKTsqhyXznT9G9bj75bn5xl3HXgESMf8HWOGnfZbY3YPozfKe5xDyT1GF/mS3wdKZEwe/hs5yfGBH3n9owCUg8+dPwOTQ0BAL9AqLserOLEgNtAAAAAElFTkSuQmCC",
+  "b_n": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAABd0lEQVR4nO2YAW7DIAxFv6Lea87J5t4nd2A7RG6ROzAxweTRkJZgCJX4ktU2BPrifrsJwNDQ0FBLEQBOjPHB2KXA1kcMx2LMndcltBXgEtiFQcfQ1gPuHeOeMm52IHeDiCwzp+zUVPbVMMbYIPfeX0Bz+Ni7T4OZfyPIg5vmwO5nd5ELL7Pu51OTApRfnpt1RJapDf6XZakz0BDg7rWWVf75OEh0hSJwrlScD20s189ItMNaNsnuFj3YxNYMEtn2x6jrLCPKtpZFqgNDZFvDIk2yDB9aFimBCA8CTS3CYTHXQzPbG+feCUKpi3Cisp+FzFBzX5vMTJsIOLse6DFB5zKdaQcpjWJUeaR6Ffh01wkqKUbTEhgZHWQ6gJ4B3AF8+ZC6J7YPPqEnOgMdQOboAuYdYNIEJjp2xi1jrdT9LrXe45gU1qgF/FEL+pJ9jKlwvmbhNYG+bLdowhtqwhvqVjg//tMp0rZtWJYF67q6j9+aaw8NDUFXP/xo5BPcUJhdAAAAAElFTkSuQmCC",
+  "b_r": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAABFElEQVR4nO3YzwnCMBQG8M+HGwhCe+ko5tAO0hly7KU6SFeoG9QNBAUH6NWDbhARcgqI0b6UvjY/yKV8NGn+lCRAFEVRNGWrH7I1gJ3zbA/g9CXjm3MzLDoAximdR8Y352Y+Wg/8EOVUpgbmRmn0Lw1QYEIQaO0bLMtym2VZsIb0fb9pmoa3p9M0vSKgJEluod5df/g7DC01AlNaa8NBa204F+g3LVMPt4v5exAEIghEEIggEEEggkAEgQgCEQQiLIVm2jBVVfUYq821tG3pgauXne2p35HlT+dAh4A25EJ8YgIIM7UHcHwPYZ7nDxNAURR3O0WOtr7JHK0M1/wWOT0IM71hutgr4ffQhbay9UVRhIl7ASd200TamoUBAAAAAElFTkSuQmCC",
+  "b_p": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAtCAYAAAA6GuKaAAAA3ElEQVR4nO2YwQ3DIAxFP16sbBYyGc1krpA4pkopjm1aP4lDJANPYCAABEEQBJ5JN7SZAWwAjv5d4JgmyyelwjFnwq7Fy4U095kQgaDH5k368UHM4U16hyIk1I5YvnpahNxLWU2YpXYRzd1DbBeZPcbZol+aqDszzXm19Gg8YUj9YiHybKcWI71bS6uehJL8xeFSVhNmS/EZYbYQlxBm6dvMFSxY6mqjzFppIi3Md4/2u3cN9dymQWkX/9gkfONWIQ3Etml04UJYEIIfsrS0q3eNNBCbf/kKFgQw5AXqLOaMu1+2qwAAAABJRU5ErkJggg==",
+};
+
 export function ChessPiece({ type, color, className = '', style = {} }) {
-  const isWhite = color === 'w';
+  const key = `${color}_${type}`;
+  const src = PIECE_IMAGES[key];
 
-  // Crisp tournament styling: warm off-white for White, deep graphite for Black
-  const fillPrimary = isWhite ? '#ffffff' : '#262421';
-  const strokePrimary = isWhite ? '#1b1b1b' : '#1b1b1b';
-  const detailStroke = isWhite ? '#1b1b1b' : '#ffffff';
+  if (!src) return null;
 
-  switch (type) {
-    case 'p': // Pawn
-      return (
-        <svg viewBox="0 0 45 45" className={className} style={style}>
-          <path
-            d="m 22.5,9 c -2.21,0 -4,1.79 -4,4 0,0.89 0.29,1.71 0.78,2.38 C 17.33,16.5 16,18.59 16,21 c 0,2.03 0.94,3.84 2.41,5.03 C 15.41,27.09 11,31.58 11,39.5 l 23,0 c 0,-7.92 -4.41,-12.41 -7.41,-13.47 1.47,-1.19 2.41,-3 2.41,-5.03 0,-2.41 -1.33,-4.5 -3.28,-5.62 0.49,-0.67 0.78,-1.49 0.78,-2.38 0,-2.21 -1.79,-4 -4,-4 z"
-            fill={fillPrimary}
-            stroke={strokePrimary}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      );
-
-    case 'n': // Knight
-      return (
-        <svg viewBox="0 0 45 45" className={className} style={style}>
-          <g fill={fillPrimary} stroke={strokePrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" />
-            <path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,7.4 17.07,8.06 17.07,8.06 C 18.57,6.86 21.07,7.06 22,10 z" />
-            <circle cx="9.5" cy="25.5" r="1" fill={detailStroke} stroke="none" />
-            <path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" fill={detailStroke} stroke="none" />
-          </g>
-        </svg>
-      );
-
-    case 'b': // Bishop
-      return (
-        <svg viewBox="0 0 45 45" className={className} style={style}>
-          <g fill={fillPrimary} stroke={strokePrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 9,36 C 12.39,35.03 19.11,36.43 22.5,34 C 25.89,36.43 32.61,35.03 36,36 C 36,36 37.65,36.54 39,38 C 38.32,38.97 37.35,38.99 36,38.5 C 32.61,37.53 25.89,38.96 22.5,37.5 C 19.11,38.96 12.39,37.53 9,38.5 C 7.646,38.99 6.677,38.97 6,38 C 7.354,36.54 9,36 9,36 z" />
-            <path d="M 15,32 C 17.5,34.5 27.5,34.5 30,32 C 30.5,30.5 30,30 30,30 C 30,27.5 27.5,26 27.5,26 C 33,24.5 33.5,14.5 22.5,10.5 C 11.5,14.5 12,24.5 17.5,26 C 17.5,26 15,27.5 15,30 C 15,30 14.5,30.5 15,32 z" />
-            <path d="m 25 8 a 2.5 2.5 0 1 1 -5,0 a 2.5 2.5 0 1 1 5,0 z" />
-            <path d="M 17.5,26 L 27.5,26" fill="none" />
-            <path d="M 15,30 L 30,30" fill="none" />
-            <path d="M 22.5,15.5 L 22.5,20.5 M 20,18 L 25,18" fill="none" stroke={detailStroke} />
-          </g>
-        </svg>
-      );
-
-    case 'r': // Rook
-      return (
-        <svg viewBox="0 0 45 45" className={className} style={style}>
-          <g fill={fillPrimary} stroke={strokePrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 9,39 L 36,39 L 36,36 L 9,36 z" />
-            <path d="M 12,36 L 12,32 L 33,32 L 33,36 z" />
-            <path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14 z" />
-            <path d="M 34,14 L 31,17 L 14,17 L 11,14 z" />
-            <path d="M 31,17 L 31,29.5 L 14,29.5 L 14,17 z" />
-            <path d="M 31,29.5 L 32.5,32 L 12.5,32 L 14,29.5 z" />
-            <path d="M 11,14 L 34,14" fill="none" />
-          </g>
-        </svg>
-      );
-
-    case 'q': // Queen
-      return (
-        <svg viewBox="0 0 45 45" className={className} style={style}>
-          <g fill={fillPrimary} stroke={strokePrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 9 13 A 2 2 0 1 1 5,13 A 2 2 0 1 1 9 13 z" />
-            <path d="M 24 10.5 A 2 2 0 1 1 20,10.5 A 2 2 0 1 1 24 10.5 z" />
-            <path d="M 39 13 A 2 2 0 1 1 35,13 A 2 2 0 1 1 39 13 z" />
-            <path d="M 16.5 11.5 A 2 2 0 1 1 12.5,11.5 A 2 2 0 1 1 16.5 11.5 z" />
-            <path d="M 31.5 11.5 A 2 2 0 1 1 27.5,11.5 A 2 2 0 1 1 31.5 11.5 z" />
-            <path d="M 9,26 C 17.5,34 27.5,34 36,26 L 38.5,14.5 L 31,25 L 22.5,12 L 14,25 L 6.5,14.5 z" />
-            <path d="M 9,26 C 9,28 10.5,28 11.5,30 C 12.5,31.5 12.5,31 12,33.5 C 10.5,34.5 10.5,36 10.5,36 C 9,37.5 11,38.5 11,38.5 L 34,38.5 C 34,38.5 36,37.5 34.5,36 C 34.5,36 34.5,34.5 33,33.5 C 32.5,31 32.5,31.5 33.5,30 C 34.5,28 36,28 36,26 z" />
-            <path d="M 11.5,30 C 15,29 30,29 33.5,30" fill="none" />
-            <path d="M 12,33.5 C 18,32.5 27,32.5 33,33.5" fill="none" />
-          </g>
-        </svg>
-      );
-
-    case 'k': // King
-      return (
-        <svg viewBox="0 0 45 45" className={className} style={style}>
-          <g fill={fillPrimary} stroke={strokePrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 22.5,11.63 L 22.5,6" fill="none" stroke={detailStroke} />
-            <path d="M 20,8 L 25,8" fill="none" stroke={detailStroke} />
-            <path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 24,11.5 21,11.5 22.5,25 z" />
-            <path d="M 11.5,37 C 17,40.5 28,40.5 33.5,37 C 33.5,34 32,32 30,30.5 C 26,29 19,29 15,30.5 C 13,32 11.5,34 11.5,37 z" />
-            <path d="M 12,36 C 17,39 28,39 33,36" fill="none" />
-            <path d="M 11.5,30 C 15,27 15,20 22.5,20 C 30,20 30,27 33.5,30" />
-            <path d="M 20,20 C 20,15 15,16 13,18 C 11,20 12,23 15,25" />
-            <path d="M 25,20 C 25,15 30,16 32,18 C 34,20 33,23 30,25" />
-          </g>
-        </svg>
-      );
-
-    default:
-      return null;
-  }
+  return (
+    <img
+      src={src}
+      alt={`${color === 'w' ? 'White' : 'Black'} ${type}`}
+      className={`chess-piece-img ${className}`}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        imageRendering: 'pixelated',
+        userSelect: 'none',
+        pointerEvents: 'none',
+        ...style
+      }}
+      draggable={false}
+    />
+  );
 }
