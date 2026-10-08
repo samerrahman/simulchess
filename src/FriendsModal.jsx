@@ -266,7 +266,7 @@ export default function FriendsModal({
                     required 
                     autoFocus
                     className="input-field" 
-                    placeholder="e.g. Red, Cynthia, Ash" 
+                    placeholder="Username" 
                     value={targetUsername}
                     onChange={(e) => setTargetUsername(e.target.value)}
                     disabled={loading}

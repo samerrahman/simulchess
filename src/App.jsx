@@ -1036,7 +1036,7 @@ export default function App() {
                   <input
                     type="text"
                     className="input-field mode-code-input"
-                    placeholder="e.g. A9B2X1"
+                    placeholder="Room Code"
                     maxLength={8}
                     value={inputRoomId}
                     onChange={(e) => setInputRoomId(e.target.value.toUpperCase())}
