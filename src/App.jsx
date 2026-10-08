@@ -1044,11 +1044,11 @@ export default function App() {
                   />
                   <button 
                     type="submit" 
-                    className="btn btn-primary btn-join-action"
+                    className="btn btn-primary btn-full btn-mode-action"
                     disabled={!inputRoomId.trim() || isSearchingMatch}
                   >
-                    <span>Join</span>
-                    <ArrowRight size={14} />
+                    <span>Join Room</span>
+                    <ArrowRight size={16} />
                   </button>
                 </form>
               </div>
