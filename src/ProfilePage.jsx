@@ -135,9 +135,9 @@ export default function ProfilePage({
                 <Sparkles size={24} className="text-amber" />
               </div>
               <div className="protection-content">
-                <h4>Claim Your Name Permanently</h4>
+                <h4>Save Your Account</h4>
                 <p>
-                  You are currently playing as a guest. Registering lets you lock in your username with a password, protect your <strong>{elo} Elo</strong> from being lost, and appear on the Hall of Fame Leaderboard!
+                  Set a password to keep your rating ({elo} Elo) and log in across devices.
                 </p>
                 <div className="protection-actions">
                   <button 

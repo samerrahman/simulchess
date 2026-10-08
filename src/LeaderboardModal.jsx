@@ -38,7 +38,7 @@ export default function LeaderboardModal({ isOpen, onClose, currentUserId, curre
         <div className="modal-header">
           <div className="modal-title-row">
             <Trophy size={24} className="trophy-gold" />
-            <h2 className="modal-title">SimulChess Hall of Fame</h2>
+            <h2 className="modal-title">Leaderboard</h2>
           </div>
           <button className="btn-icon modal-close-btn" onClick={onClose} title="Close">
             <X size={20} />

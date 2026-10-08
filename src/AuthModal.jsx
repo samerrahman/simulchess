@@ -330,9 +330,9 @@ export default function AuthModal({
               <div className="register-elo-callout">
                 <Sparkles size={18} className="text-amber" />
                 <div className="register-elo-callout-text">
-                  <strong>Permanent Elo Protection:</strong>
+                  <strong>Keep your progress:</strong>
                   <span>
-                    Your current rating of <strong>{userProfile?.elo || 1200} Elo</strong> ({userProfile?.wins || 0}W - {userProfile?.losses || 0}L) will be permanently saved to this account!
+                    Your current rating of <strong>{userProfile?.elo || 1200} Elo</strong> ({userProfile?.wins || 0}W - {userProfile?.losses || 0}L) will carry over to this account.
                   </span>
                 </div>
               </div>
@@ -448,8 +448,8 @@ export default function AuthModal({
 
                 <p className="account-hint">
                   {currentUser 
-                    ? "Your rating and match progress are permanently saved and ranked on the Hall of Fame." 
-                    : "You are playing as a guest. Register your username at any time to permanently save your rating progress across devices."}
+                    ? "Your rating and match progress are linked to your account." 
+                    : "Create an account to keep your rating and log in from any device."}
                 </p>
               </div>
 
@@ -461,7 +461,7 @@ export default function AuthModal({
                     style={{ marginBottom: '0.6rem' }}
                   >
                     <UserPlus size={16} />
-                    <span>Register & Save Elo</span>
+                    <span>Create Account</span>
                   </button>
                 )}
                 <button 
