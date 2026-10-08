@@ -939,10 +939,10 @@ export default function App() {
             <div className="play-hero-section">
               <div className="hero-text-col">
                 <h1 className="hero-headline">
-                  Moves resolve together.
+                  Chess. But real time.
                 </h1>
                 <p className="hero-subhead">
-                  Both moves execute at the same time — bringing new tactical strategies, mutual collisions, and counter-ambushes.
+                  Moves resolve simultaneously each turn — bringing new strategies, mutual collisions, and counter-ambushes.
                 </p>
               </div>
 
