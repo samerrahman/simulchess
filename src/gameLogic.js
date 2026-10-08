@@ -87,9 +87,18 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
               }
             }
           }
+        } else if (fwd1Sq && board[fwd1Sq]?.color === friendlyColor) {
+          // Defend 1 step forward into friendly piece
+          if (r + pawnDirection === promoRank) {
+            ['q', 'r', 'b', 'n'].forEach(pr => {
+              moves.push({ from: sq, to: fwd1Sq, piece, isDefend: true, promotion: pr, san: `${fwd1Sq}=${pr.toUpperCase()}[D]` });
+            });
+          } else {
+            moves.push({ from: sq, to: fwd1Sq, piece, isDefend: true, san: `${fwd1Sq}[D]` });
+          }
         }
 
-        // Diagonal captures
+        // Diagonal captures and friendly defense
         for (const df of [-1, 1]) {
           const capSq = toSq(f + df, r + pawnDirection);
           if (!capSq) continue;
@@ -120,6 +129,27 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
                 san: `${FILES[f]}x${capSq}`
               });
             }
+          } else if (targetPiece && targetPiece.color === friendlyColor) {
+            if (r + pawnDirection === promoRank) {
+              ['q', 'r', 'b', 'n'].forEach(pr => {
+                moves.push({
+                  from: sq,
+                  to: capSq,
+                  piece,
+                  isDefend: true,
+                  promotion: pr,
+                  san: `${FILES[f]}~${capSq}=${pr.toUpperCase()}`
+                });
+              });
+            } else {
+              moves.push({
+                from: sq,
+                to: capSq,
+                piece,
+                isDefend: true,
+                san: `${FILES[f]}~${capSq}`
+              });
+            }
           }
         }
         break;
@@ -138,6 +168,8 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
             moves.push({ from: sq, to: targetSq, piece, san: `N${targetSq}` });
           } else if (targetPiece.color === enemyColor) {
             moves.push({ from: sq, to: targetSq, piece, captured: targetPiece, san: `Nx${targetSq}` });
+          } else if (targetPiece.color === friendlyColor) {
+            moves.push({ from: sq, to: targetSq, piece, isDefend: true, san: `N~${targetSq}` });
           }
         }
         break;
@@ -156,6 +188,8 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
             } else {
               if (targetPiece.color === enemyColor) {
                 moves.push({ from: sq, to: targetSq, piece, captured: targetPiece, san: `Bx${targetSq}` });
+              } else if (targetPiece.color === friendlyColor) {
+                moves.push({ from: sq, to: targetSq, piece, isDefend: true, san: `B~${targetSq}` });
               }
               break;
             }
@@ -178,6 +212,8 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
             } else {
               if (targetPiece.color === enemyColor) {
                 moves.push({ from: sq, to: targetSq, piece, captured: targetPiece, san: `Rx${targetSq}` });
+              } else if (targetPiece.color === friendlyColor) {
+                moves.push({ from: sq, to: targetSq, piece, isDefend: true, san: `R~${targetSq}` });
               }
               break;
             }
@@ -203,6 +239,8 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
             } else {
               if (targetPiece.color === enemyColor) {
                 moves.push({ from: sq, to: targetSq, piece, captured: targetPiece, san: `Qx${targetSq}` });
+              } else if (targetPiece.color === friendlyColor) {
+                moves.push({ from: sq, to: targetSq, piece, isDefend: true, san: `Q~${targetSq}` });
               }
               break;
             }
@@ -225,6 +263,8 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
             moves.push({ from: sq, to: targetSq, piece, san: `K${targetSq}` });
           } else if (targetPiece.color === enemyColor) {
             moves.push({ from: sq, to: targetSq, piece, captured: targetPiece, san: `Kx${targetSq}` });
+          } else if (targetPiece.color === friendlyColor) {
+            moves.push({ from: sq, to: targetSq, piece, isDefend: true, san: `K~${targetSq}` });
           }
         }
 
@@ -307,13 +347,17 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
     ? (blackMove.promotion ? { type: blackMove.promotion, color: 'b' } : (board[blackFrom] || blackMove.piece))
     : null;
 
+  // Determine if White or Black is attempting a Defend move on a friendly piece
+  const whiteIsDefend = Boolean(whiteMove && (whiteMove.isDefend || (whiteTo && board[whiteTo]?.color === 'w')));
+  const blackIsDefend = Boolean(blackMove && (blackMove.isDefend || (blackTo && board[blackTo]?.color === 'b')));
+
   // Remove moving pieces from origin squares
   if (whiteFrom) delete newBoard[whiteFrom];
   if (blackFrom) delete newBoard[blackFrom];
 
   // Castling rook origins
   let whiteRookMove = null;
-  if (whiteMove?.isCastling || (whitePieceObj?.type === 'k' && whiteFrom === 'e1' && (whiteTo === 'g1' || whiteTo === 'c1'))) {
+  if (!whiteIsDefend && (whiteMove?.isCastling || (whitePieceObj?.type === 'k' && whiteFrom === 'e1' && (whiteTo === 'g1' || whiteTo === 'c1')))) {
     const isKingSide = whiteTo === 'g1';
     whiteRookMove = {
       from: isKingSide ? 'h1' : 'a1',
@@ -324,7 +368,7 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
   }
 
   let blackRookMove = null;
-  if (blackMove?.isCastling || (blackPieceObj?.type === 'k' && blackFrom === 'e8' && (blackTo === 'g8' || blackTo === 'c8'))) {
+  if (!blackIsDefend && (blackMove?.isCastling || (blackPieceObj?.type === 'k' && blackFrom === 'e8' && (blackTo === 'g8' || blackTo === 'c8')))) {
     const isKingSide = blackTo === 'g8';
     blackRookMove = {
       from: isKingSide ? 'h8' : 'a8',
@@ -333,10 +377,6 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
     };
     delete newBoard[blackRookMove.from];
   }
-
-  // Detect collisions: only same-square collision destroys both pieces
-  const isSquareCollision = whiteTo && blackTo && whiteTo === blackTo;
-  const isSwapPass = whiteTo && blackTo && whiteTo === blackFrom && blackTo === whiteFrom;
 
   function updateRightsForSquare(sq) {
     if (sq === 'e1') { rights.w.k = false; rights.w.q = false; }
@@ -347,27 +387,95 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
     if (sq === 'a8') { rights.b.q = false; }
   }
 
-  if (whiteFrom) updateRightsForSquare(whiteFrom);
-  if (blackFrom) updateRightsForSquare(blackFrom);
-  if (whiteTo) updateRightsForSquare(whiteTo);
-  if (blackTo) updateRightsForSquare(blackTo);
+  // Detect collisions
+  const isSquareCollision = whiteTo && blackTo && whiteTo === blackTo;
+  const isSwapPass = whiteTo && blackTo && whiteTo === blackFrom && blackTo === whiteFrom;
 
   // Resolve destinations
   if (isSquareCollision) {
-    const originalPieceAtSquare = board[whiteTo];
-    if (originalPieceAtSquare) {
-      capturedPieces[originalPieceAtSquare.color].push(originalPieceAtSquare);
-    }
-    capturedPieces.w.push(whitePieceObj);
-    capturedPieces.b.push(blackPieceObj);
-    delete newBoard[whiteTo];
+    const targetSq = whiteTo;
+    if (whiteIsDefend && !blackIsDefend) {
+      // White defender counter-ambushes Black attacker on targetSq
+      capturedPieces.b.push(blackPieceObj);
 
-    events.push({
-      type: 'collision',
-      subtype: 'square',
-      square: whiteTo,
-      message: `Collision on ${whiteTo}: ${pieceName(whitePieceObj)} and ${pieceName(blackPieceObj)} destroyed`
-    });
+      const stationaryPiece = board[targetSq];
+      if (stationaryPiece?.type === 'k') {
+        // King is saved! Bodyguard defender sacrifices itself
+        capturedPieces.w.push(whitePieceObj);
+        newBoard[targetSq] = stationaryPiece;
+        events.push({
+          type: 'counter_ambush',
+          by: 'w',
+          square: targetSq,
+          savedKing: true,
+          message: `White's ${pieceName(whitePieceObj)} sacrifices itself on ${targetSq} to destroy ${pieceName(blackPieceObj)}, saving the King!`
+        });
+      } else {
+        // Non-King: stationary piece traded, White defender claims square
+        if (stationaryPiece) capturedPieces.w.push(stationaryPiece);
+        newBoard[targetSq] = whitePieceObj;
+        events.push({
+          type: 'counter_ambush',
+          by: 'w',
+          square: targetSq,
+          message: `White counter-ambushes on ${targetSq}! ${pieceName(whitePieceObj)} eliminates ${pieceName(blackPieceObj)} (trading ${pieceName(stationaryPiece)})`
+        });
+      }
+      if (whiteFrom) updateRightsForSquare(whiteFrom);
+      if (blackFrom) updateRightsForSquare(blackFrom);
+      updateRightsForSquare(targetSq);
+
+    } else if (blackIsDefend && !whiteIsDefend) {
+      // Black defender counter-ambushes White attacker on targetSq
+      capturedPieces.w.push(whitePieceObj);
+
+      const stationaryPiece = board[targetSq];
+      if (stationaryPiece?.type === 'k') {
+        // King is saved! Bodyguard defender sacrifices itself
+        capturedPieces.b.push(blackPieceObj);
+        newBoard[targetSq] = stationaryPiece;
+        events.push({
+          type: 'counter_ambush',
+          by: 'b',
+          square: targetSq,
+          savedKing: true,
+          message: `Black's ${pieceName(blackPieceObj)} sacrifices itself on ${targetSq} to destroy ${pieceName(whitePieceObj)}, saving the King!`
+        });
+      } else {
+        // Non-King: stationary piece traded, Black defender claims square
+        if (stationaryPiece) capturedPieces.b.push(stationaryPiece);
+        newBoard[targetSq] = blackPieceObj;
+        events.push({
+          type: 'counter_ambush',
+          by: 'b',
+          square: targetSq,
+          message: `Black counter-ambushes on ${targetSq}! ${pieceName(blackPieceObj)} eliminates ${pieceName(whitePieceObj)} (trading ${pieceName(stationaryPiece)})`
+        });
+      }
+      if (whiteFrom) updateRightsForSquare(whiteFrom);
+      if (blackFrom) updateRightsForSquare(blackFrom);
+      updateRightsForSquare(targetSq);
+
+    } else {
+      // Standard same-square collision: both moving pieces destroyed
+      const originalPieceAtSquare = board[targetSq];
+      if (originalPieceAtSquare) {
+        capturedPieces[originalPieceAtSquare.color].push(originalPieceAtSquare);
+      }
+      capturedPieces.w.push(whitePieceObj);
+      capturedPieces.b.push(blackPieceObj);
+      delete newBoard[targetSq];
+
+      events.push({
+        type: 'collision',
+        subtype: 'square',
+        square: targetSq,
+        message: `Collision on ${targetSq}: ${pieceName(whitePieceObj)} and ${pieceName(blackPieceObj)} destroyed`
+      });
+      if (whiteFrom) updateRightsForSquare(whiteFrom);
+      if (blackFrom) updateRightsForSquare(blackFrom);
+      updateRightsForSquare(targetSq);
+    }
   } else {
     if (isSwapPass) {
       events.push({
@@ -376,70 +484,98 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
       });
     }
 
-    // White lands
+    // White lands or holds
     if (whitePieceObj && whiteTo) {
-      const stationaryPiece = board[whiteTo];
-      if (stationaryPiece && stationaryPiece.color === 'b' && whiteTo !== blackFrom) {
-        capturedPieces.b.push(stationaryPiece);
+      if (whiteIsDefend) {
+        // Opponent did not attack defended square -> turn resolves to nothing happening
+        newBoard[whiteFrom] = board[whiteFrom];
         events.push({
-          type: 'capture',
-          by: 'w',
+          type: 'defend_hold',
+          color: 'w',
           square: whiteTo,
-          piece: whitePieceObj,
-          captured: stationaryPiece,
-          message: `White captures ${pieceName(stationaryPiece)} on ${whiteTo}`
+          from: whiteFrom,
+          message: `White ${pieceName(whitePieceObj)} held position at ${whiteFrom} (${whiteTo} was not attacked)`
         });
-      }
-
-      // En passant for White
-      if (whitePieceObj.type === 'p' && whiteTo === currentEnPassantTarget && !board[whiteTo]) {
-        const epSq = toSq(sqToFileRank(whiteTo)[0], sqToFileRank(whiteTo)[1] - 1);
-        if (epSq && newBoard[epSq] && newBoard[epSq].color === 'b') {
-          capturedPieces.b.push(newBoard[epSq]);
-          delete newBoard[epSq];
+      } else {
+        const stationaryPiece = board[whiteTo];
+        if (stationaryPiece && stationaryPiece.color === 'b' && (whiteTo !== blackFrom || (blackIsDefend && blackTo !== whiteTo))) {
+          capturedPieces.b.push(stationaryPiece);
           events.push({
             type: 'capture',
             by: 'w',
-            square: epSq,
-            message: `White en passant on ${epSq}`
+            square: whiteTo,
+            piece: whitePieceObj,
+            captured: stationaryPiece,
+            message: `White captures ${pieceName(stationaryPiece)} on ${whiteTo}`
           });
         }
-      }
 
-      newBoard[whiteTo] = whitePieceObj;
+        // En passant for White
+        if (whitePieceObj.type === 'p' && whiteTo === currentEnPassantTarget && !board[whiteTo]) {
+          const epSq = toSq(sqToFileRank(whiteTo)[0], sqToFileRank(whiteTo)[1] - 1);
+          if (epSq && newBoard[epSq] && newBoard[epSq].color === 'b') {
+            capturedPieces.b.push(newBoard[epSq]);
+            delete newBoard[epSq];
+            events.push({
+              type: 'capture',
+              by: 'w',
+              square: epSq,
+              message: `White en passant on ${epSq}`
+            });
+          }
+        }
+
+        newBoard[whiteTo] = whitePieceObj;
+        if (whiteFrom) updateRightsForSquare(whiteFrom);
+        updateRightsForSquare(whiteTo);
+      }
     }
 
-    // Black lands
+    // Black lands or holds
     if (blackPieceObj && blackTo) {
-      const stationaryPiece = board[blackTo];
-      if (stationaryPiece && stationaryPiece.color === 'w' && blackTo !== whiteFrom) {
-        capturedPieces.w.push(stationaryPiece);
+      if (blackIsDefend) {
+        // Opponent did not attack defended square -> turn resolves to nothing happening
+        newBoard[blackFrom] = board[blackFrom];
         events.push({
-          type: 'capture',
-          by: 'b',
+          type: 'defend_hold',
+          color: 'b',
           square: blackTo,
-          piece: blackPieceObj,
-          captured: stationaryPiece,
-          message: `Black captures ${pieceName(stationaryPiece)} on ${blackTo}`
+          from: blackFrom,
+          message: `Black ${pieceName(blackPieceObj)} held position at ${blackFrom} (${blackTo} was not attacked)`
         });
-      }
-
-      // En passant for Black
-      if (blackPieceObj.type === 'p' && blackTo === currentEnPassantTarget && !board[blackTo]) {
-        const epSq = toSq(sqToFileRank(blackTo)[0], sqToFileRank(blackTo)[1] + 1);
-        if (epSq && newBoard[epSq] && newBoard[epSq].color === 'w') {
-          capturedPieces.w.push(newBoard[epSq]);
-          delete newBoard[epSq];
+      } else {
+        const stationaryPiece = board[blackTo];
+        if (stationaryPiece && stationaryPiece.color === 'w' && (blackTo !== whiteFrom || (whiteIsDefend && whiteTo !== blackTo))) {
+          capturedPieces.w.push(stationaryPiece);
           events.push({
             type: 'capture',
             by: 'b',
-            square: epSq,
-            message: `Black en passant on ${epSq}`
+            square: blackTo,
+            piece: blackPieceObj,
+            captured: stationaryPiece,
+            message: `Black captures ${pieceName(stationaryPiece)} on ${blackTo}`
           });
         }
-      }
 
-      newBoard[blackTo] = blackPieceObj;
+        // En passant for Black
+        if (blackPieceObj.type === 'p' && blackTo === currentEnPassantTarget && !board[blackTo]) {
+          const epSq = toSq(sqToFileRank(blackTo)[0], sqToFileRank(blackTo)[1] + 1);
+          if (epSq && newBoard[epSq] && newBoard[epSq].color === 'w') {
+            capturedPieces.w.push(newBoard[epSq]);
+            delete newBoard[epSq];
+            events.push({
+              type: 'capture',
+              by: 'b',
+              square: epSq,
+              message: `Black en passant on ${epSq}`
+            });
+          }
+        }
+
+        newBoard[blackTo] = blackPieceObj;
+        if (blackFrom) updateRightsForSquare(blackFrom);
+        updateRightsForSquare(blackTo);
+      }
     }
   }
 

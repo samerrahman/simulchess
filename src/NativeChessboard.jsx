@@ -203,6 +203,7 @@ export default function NativeChessboard({
             const isSelected = selectedSquare === square;
             const isLegalTarget = activeDestinations.has(square);
             const isTargetEnemy = isLegalTarget && originalPiece && originalPiece.color !== playerColor;
+            const isTargetDefend = isLegalTarget && originalPiece && originalPiece.color === playerColor;
             const hasCollision = collisionSquares.has(square);
 
             const isMovedFrom = movedFromSquares.has(square);
@@ -278,11 +279,14 @@ export default function NativeChessboard({
                 )}
 
                 {/* Legal Move Indicators */}
-                {isLegalTarget && !isTargetEnemy && (
+                {isLegalTarget && !isTargetEnemy && !isTargetDefend && (
                   <div className="legal-dot-indicator" />
                 )}
                 {isTargetEnemy && (
                   <div className="legal-capture-ring" />
+                )}
+                {isTargetDefend && (
+                  <div className="legal-defend-ring" title="Defend / Counter-Ambush square" />
                 )}
               </div>
             );

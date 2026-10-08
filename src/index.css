@@ -1021,6 +1021,23 @@ body {
   z-index: 3;
 }
 
+.legal-defend-ring {
+  position: absolute;
+  width: 84%;
+  height: 84%;
+  border-radius: 50%;
+  border: 4px dashed rgba(6, 182, 212, 0.9);
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.5), inset 0 0 8px rgba(6, 182, 212, 0.25);
+  pointer-events: none;
+  z-index: 3;
+  animation: defendPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes defendPulse {
+  0%, 100% { transform: scale(0.95); opacity: 0.85; }
+  50% { transform: scale(1.03); opacity: 1; }
+}
+
 /* Collision Badge */
 .collision-boom-badge {
   position: absolute;
@@ -1401,6 +1418,16 @@ body {
 
 .event-note-pass {
   color: #93c5fd;
+}
+
+.event-note-counter_ambush {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.event-note-defend_hold {
+  color: #a7f3d0;
+  font-style: italic;
 }
 
 /* =========================================================

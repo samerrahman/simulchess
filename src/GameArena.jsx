@@ -640,7 +640,11 @@ export default function GameArena(props) {
                 )}
                 {intendedMove && (
                   <div className="staged-mini-badge">
-                    {pieceName(intendedMove.piece)} {intendedMove.from.toUpperCase()} ➔ {intendedMove.to.toUpperCase()}
+                    {intendedMove.isDefend ? (
+                      <>🛡️ Defend {intendedMove.to.toUpperCase()} with {pieceName(intendedMove.piece)} ({intendedMove.from.toUpperCase()})</>
+                    ) : (
+                      <>{pieceName(intendedMove.piece)} {intendedMove.from.toUpperCase()} ➔ {intendedMove.to.toUpperCase()}</>
+                    )}
                   </div>
                 )}
               </div>
