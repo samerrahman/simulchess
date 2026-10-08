@@ -41,8 +41,8 @@ export default function SettingsPage({ onNavigateToPlay }) {
           <div className="settings-title-group">
             <Sliders size={26} className="text-accent" />
             <div>
-              <h1 className="settings-title">Preferences & Themes</h1>
-              <p className="settings-subtitle">Customize your visual board theme, website styling, and game effects.</p>
+              <h1 className="settings-title">Preferences</h1>
+              <p className="settings-subtitle">Themes, audio, and animations.</p>
             </div>
           </div>
         </div>
@@ -52,7 +52,7 @@ export default function SettingsPage({ onNavigateToPlay }) {
           <div className="section-header-row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <Palette size={20} className="text-amber" />
-              <h2 className="section-heading">Visual & Chessboard Themes</h2>
+              <h2 className="section-heading">Themes</h2>
             </div>
             
             {/* Filter pills: All, Light, Dark */}

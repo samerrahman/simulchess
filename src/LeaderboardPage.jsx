@@ -59,8 +59,8 @@ export default function LeaderboardPage({
             <Trophy size={28} className="trophy-gold" />
           </div>
           <div>
-            <h1 className="page-title">Hall of Fame Leaderboard</h1>
-            <p className="page-subtitle">The highest rated simultaneous chess grandmasters in SimulChess.</p>
+            <h1 className="page-title">Leaderboard</h1>
+            <p className="page-subtitle">Top rated players.</p>
           </div>
         </div>
 

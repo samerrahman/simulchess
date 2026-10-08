@@ -935,37 +935,22 @@ export default function App() {
               </div>
             )}
 
-            {/* Hero Showcase Header */}
+            {/* Hero Section */}
             <div className="play-hero-section">
               <div className="hero-text-col">
                 <h1 className="hero-headline">
-                  Simultaneous Chess in Real Time.
+                  Moves resolve together.
                 </h1>
                 <p className="hero-subhead">
-                  No waiting for turns. Both players lock in their moves at the exact same second. Contested squares trigger instant collision captures.
+                  Both moves execute at the same time — bringing new tactical strategies, mutual collisions, and counter-ambushes.
                 </p>
-
-                <div className="hero-quick-features">
-                  <div className="hero-feat-tag">
-                    <Clock size={14} className="text-amber" />
-                    <span>10-Second Timer</span>
-                  </div>
-                  <div className="hero-feat-tag">
-                    <Zap size={14} className="text-accent" />
-                    <span>Simultaneous Moves</span>
-                  </div>
-                  <div className="hero-feat-tag">
-                    <Flame size={14} className="text-emerald" />
-                    <span>Double Captures</span>
-                  </div>
-                </div>
               </div>
 
               {!hasChosenName ? (
                 <div className="hero-cta-card">
-                  <Sparkles size={24} className="text-amber" />
-                  <h3>Pick Your Player Name</h3>
-                  <p>Choose a username to enter rated matchmaking and climb the ranks.</p>
+                  <Sparkles size={20} className="text-amber" />
+                  <h3>Pick a Name</h3>
+                  <p>Choose a username to play rated matches and track your rating.</p>
                   <button 
                     className="btn btn-primary btn-full"
                     onClick={() => {
@@ -974,7 +959,7 @@ export default function App() {
                     }}
                   >
                     <span>Choose Name</span>
-                    <ArrowRight size={16} />
+                    <ArrowRight size={15} />
                   </button>
                 </div>
               ) : null}
@@ -992,7 +977,7 @@ export default function App() {
                 </div>
                 <h3 className="mode-title">Find Match</h3>
                 <p className="mode-desc">
-                  Jump into ranked matchmaking with simultaneous turns against a live opponent.
+                  Rated matchmaking against a live opponent.
                 </p>
                 <button 
                   className={`btn ${isSearchingMatch ? 'btn-secondary' : 'btn-primary'} btn-full btn-mode-action`}
@@ -1023,7 +1008,7 @@ export default function App() {
                 </div>
                 <h3 className="mode-title">Create Room</h3>
                 <p className="mode-desc">
-                  Generate an instant private invite link to challenge a friend or share with a community.
+                  Create a private game and invite a friend.
                 </p>
                 <button 
                   className="btn btn-secondary btn-full btn-mode-action"
@@ -1045,7 +1030,7 @@ export default function App() {
                 </div>
                 <h3 className="mode-title">Join with Code</h3>
                 <p className="mode-desc">
-                  Got an invite code from a friend? Enter the 6-letter room code below.
+                  Enter a room code to join a private game.
                 </p>
                 <form onSubmit={handleJoinSubmit} className="mode-join-form">
                   <input
@@ -1095,7 +1080,7 @@ export default function App() {
 
                 {friendsList.length === 0 ? (
                   <div className="widget-empty-block">
-                    <p>No friends added yet. Connect with players to challenge them directly!</p>
+                    <p>No friends added yet.</p>
                   </div>
                 ) : (
                   <div className="widget-friends-list">
@@ -1124,7 +1109,7 @@ export default function App() {
                 <div className="widget-header">
                   <div className="widget-title-row">
                     <BookOpen size={18} className="text-amber" />
-                    <h4>Rules & Simultaneous Mechanics</h4>
+                    <h4>Key Mechanics</h4>
                   </div>
                   <button 
                     className="auth-link-btn"
@@ -1137,15 +1122,15 @@ export default function App() {
                 <div className="widget-rules-list">
                   <div className="rule-bullet">
                     <span className="rule-bullet-num">1</span>
-                    <p><strong>Simultaneous Turns:</strong> Both players submit their move secretly within the 10-second countdown.</p>
+                    <p><strong>Simultaneous:</strong> Both moves execute at the same time each turn.</p>
                   </div>
                   <div className="rule-bullet">
                     <span className="rule-bullet-num">2</span>
-                    <p><strong>Head-On Collisions:</strong> If two pieces move to the same square simultaneously, both pieces are captured and removed!</p>
+                    <p><strong>Collisions:</strong> Two pieces targeting the same square destroy each other.</p>
                   </div>
                   <div className="rule-bullet">
                     <span className="rule-bullet-num">3</span>
-                    <p><strong>Cross-Passing:</strong> If pieces swap squares directly (A→B and B→A), both pieces are captured!</p>
+                    <p><strong>Defend:</strong> Move onto your own piece to set a counter-ambush if attacked.</p>
                   </div>
                 </div>
               </div>

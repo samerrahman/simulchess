@@ -125,8 +125,8 @@ export default function FriendsPage({
             <Users size={28} className="text-accent" />
           </div>
           <div>
-            <h1 className="page-title">Friends & Challenges</h1>
-            <p className="page-subtitle">Track online presence and challenge friends to simultaneous matches.</p>
+            <h1 className="page-title">Friends</h1>
+            <p className="page-subtitle">Connect and challenge players directly.</p>
           </div>
         </div>
 

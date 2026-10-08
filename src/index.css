@@ -2495,15 +2495,15 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 0.85rem;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  transition: background-color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .friend-card:hover {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--bg-panel);
+  border-color: var(--accent-blue);
 }
 
 .friend-info {
@@ -2625,8 +2625,8 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 0.85rem;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
 
@@ -3037,7 +3037,7 @@ body {
   align-items: center;
   gap: 2.5rem;
   padding: 2.5rem;
-  background: linear-gradient(135deg, var(--bg-panel), rgba(19, 27, 46, 0.4));
+  background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
@@ -3051,12 +3051,10 @@ body {
 
 .hero-headline {
   font-size: 2.3rem;
-  font-weight: 900;
+  font-weight: 850;
   letter-spacing: -0.03em;
   line-height: 1.15;
-  background: linear-gradient(135deg, #fff 40%, #c7d2fe);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
 }
 
 .hero-subhead {
@@ -3066,30 +3064,9 @@ body {
   max-width: 620px;
 }
 
-.hero-quick-features {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  margin-top: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.hero-feat-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border);
-  padding: 0.35rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
 .hero-cta-card {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 1.5rem;
   width: 280px;
@@ -3098,11 +3075,13 @@ body {
   align-items: center;
   text-align: center;
   gap: 0.65rem;
+  box-shadow: var(--shadow-md);
 }
 
 .hero-cta-card h3 {
   font-size: 1.1rem;
   font-weight: 800;
+  color: var(--text-primary);
 }
 
 .hero-cta-card p {
@@ -3187,7 +3166,8 @@ body {
   letter-spacing: 0.05em;
   padding: 0.2rem 0.55rem;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   color: var(--text-secondary);
 }
 
@@ -3253,7 +3233,7 @@ body {
   justify-content: space-between;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border);
 }
 
 .widget-title-row {
@@ -3286,9 +3266,9 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--bg-card);
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
 }
 
 .friend-meta-group {
@@ -3300,6 +3280,7 @@ body {
 .widget-friend-name {
   font-weight: 700;
   font-size: 0.88rem;
+  color: var(--text-primary);
 }
 
 .widget-friend-elo {
@@ -3326,13 +3307,14 @@ body {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.72rem;
   font-weight: 800;
-  color: #fbbf24;
+  color: #d97706;
   flex-shrink: 0;
   margin-top: 1px;
 }
