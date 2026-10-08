@@ -3438,7 +3438,284 @@ body {
 }
 
 .profile-elo-display strong {
-  color: #fff;
+  color: var(--text-primary);
+}
+
+.profile-rd-text {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 0.15rem;
+}
+
+.stat-card-sub-rd {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 0.25rem;
+}
+
+.provisional-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 0.12rem 0.45rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-left: 0.35rem;
+}
+
+/* Rating History & Progression Chart */
+.rating-history-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  position: relative;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+}
+
+.rating-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.rating-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rating-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-blue);
+}
+
+.rating-chart-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.rating-chart-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.rating-summary-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.rating-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-sm);
+  min-width: 80px;
+}
+
+.rating-chip-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.rating-chip-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.rd-badge-inline {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.rating-chart-viewport {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  overflow: visible;
+}
+
+.rating-svg-canvas {
+  width: 100%;
+  height: auto;
+  max-height: 240px;
+  display: block;
+  overflow: visible;
+}
+
+.chart-grid-line {
+  stroke: var(--border);
+  stroke-dasharray: 4 4;
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.chart-axis-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.chart-stroke-line {
+  filter: drop-shadow(0 2px 8px rgba(99, 102, 241, 0.35));
+}
+
+.chart-data-dot {
+  fill: var(--bg-panel);
+  stroke: var(--accent-blue);
+  stroke-width: 2.5;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.chart-data-dot-active {
+  r: 6;
+  stroke: #38bdf8;
+  stroke-width: 3.5;
+  fill: #ffffff;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.8));
+}
+
+.chart-tooltip-popover {
+  position: absolute;
+  transform: translate(-50%, -125%);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.85rem;
+  pointer-events: none;
+  z-index: 20;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: transform 0.08s ease;
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.tooltip-rating {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tooltip-rd {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.tooltip-delta {
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.delta-pos {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.delta-neg {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.tooltip-match-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.tooltip-result-pill {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+}
+
+.result-win {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.result-loss {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.result-draw {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.tooltip-opponent {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+  font-weight: 600;
+}
+
+.tooltip-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.chart-empty-hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0.35rem 0;
 }
 
 .profile-unnamed-callout {

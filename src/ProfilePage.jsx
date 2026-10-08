@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Trophy, 
@@ -9,13 +9,16 @@ import {
   Edit3, 
   ArrowLeft 
 } from 'lucide-react';
+import RatingHistoryChart from './RatingHistoryChart';
+import { getRatingHistory } from './eloService';
+import { GLICKO_DEFAULTS } from './glicko2';
 
 function getTierBadge(elo) {
-  const rating = Number(elo) || 1200;
-  if (rating >= 1700) return { name: 'Grandmaster', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', icon: '👑' };
-  if (rating >= 1500) return { name: 'Master', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)', icon: '💎' };
-  if (rating >= 1300) return { name: 'Expert', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', icon: '⚡' };
-  if (rating >= 1100) return { name: 'Challenger', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', icon: '⚔️' };
+  const rating = Number(elo) || GLICKO_DEFAULTS.RATING;
+  if (rating >= 1950) return { name: 'Grandmaster', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', icon: '👑' };
+  if (rating >= 1750) return { name: 'Master', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)', icon: '💎' };
+  if (rating >= 1550) return { name: 'Expert', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', icon: '⚡' };
+  if (rating >= 1350) return { name: 'Challenger', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', icon: '⚔️' };
   return { name: 'Novice', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)', icon: '🌱' };
 }
 
@@ -26,7 +29,9 @@ export default function ProfilePage({
   onLogout, 
   onNavigateToPlay 
 }) {
-  const elo = profile?.elo || 1200;
+  const elo = profile?.elo || GLICKO_DEFAULTS.RATING;
+  const rd = profile?.rd || GLICKO_DEFAULTS.RD;
+  const isProvisional = rd > GLICKO_DEFAULTS.PROVISIONAL_RD_THRESHOLD;
   const wins = profile?.wins || 0;
   const losses = profile?.losses || 0;
   const draws = profile?.draws || 0;
@@ -35,6 +40,18 @@ export default function ProfilePage({
   const isRegistered = Boolean(authUser);
   const username = profile?.username;
   const tier = getTierBadge(elo);
+
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    const uid = profile?.userId || authUser?.uid;
+    if (!uid) return;
+    let active = true;
+    getRatingHistory(uid, profile).then((h) => {
+      if (active) setHistory(h || []);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [profile?.userId, authUser?.uid, profile]);
 
   return (
     <div className="page-container profile-page">
@@ -75,18 +92,22 @@ export default function ProfilePage({
                 style={{ color: tier.color, backgroundColor: tier.bg, borderColor: tier.color }}
               >
                 <span>{tier.icon}</span>
-                <span>{tier.name} Tier</span>
+                <span>{tier.name}</span>
               </span>
 
               <span className="profile-elo-display">
                 <Trophy size={16} className="text-amber" />
-                <strong>{elo}</strong> Elo
+                <strong>{elo}</strong>
+                <span className="profile-rd-text">±{Math.round(rd)} RD</span>
+                {isProvisional && (
+                  <span className="provisional-pill">Provisional</span>
+                )}
               </span>
             </div>
 
             {!username ? (
               <div className="profile-unnamed-callout">
-                <p>You haven't set a player name yet. Pick a username to start saving your match record.</p>
+                <p>Choose a username to track your rating and rank on the leaderboard.</p>
                 <button 
                   className="btn btn-primary btn-sm"
                   onClick={() => onOpenAuth('choose_name')}
@@ -102,9 +123,14 @@ export default function ProfilePage({
         {/* Stats Grid */}
         <div className="profile-stats-grid">
           <div className="stat-card">
-            <span className="stat-card-label">Rating</span>
-            <div className="stat-card-value elo-highlight">{elo}</div>
-            <span className="stat-card-sub">{tier.name}</span>
+            <span className="stat-card-label">Glicko-2 Rating</span>
+            <div className="stat-card-value elo-highlight">
+              {elo}
+              <span className="stat-card-sub-rd"> ±{Math.round(rd)}</span>
+            </div>
+            <span className="stat-card-sub">
+              {isProvisional ? 'Provisional' : tier.name}
+            </span>
           </div>
 
           <div className="stat-card">
@@ -124,6 +150,13 @@ export default function ProfilePage({
             </div>
           </div>
         </div>
+
+        {/* Rating Progression Chart */}
+        <RatingHistoryChart 
+          history={history} 
+          currentRating={elo} 
+          currentRd={rd} 
+        />
 
         {/* Account Management & Security Card */}
         <div className="profile-section-card">

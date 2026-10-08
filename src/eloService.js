@@ -1,9 +1,10 @@
-import { ref, get, set, update, query, orderByChild, limitToLast } from 'firebase/database';
+import { ref, get, set, update, push, query, orderByChild, limitToLast } from 'firebase/database';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { db, auth } from './firebase';
+import { calculateGlicko2Match, GLICKO_DEFAULTS } from './glicko2';
 
-const DEFAULT_ELO = 1200;
-const K_FACTOR = 32;
+export const DEFAULT_ELO = GLICKO_DEFAULTS.RATING;
+export { GLICKO_DEFAULTS };
 
 /**
  * Normalizes a username for unique indexing (alphanumeric + underscores, lowercase).
@@ -104,8 +105,10 @@ export async function registerUsernameWithAuth(rawUsername, password, currentSes
     createdAt: Date.now()
   });
 
-  // Transfer/initialize player's registered profile preserving current session Elo!
+  // Transfer/initialize player's registered profile preserving current session Glicko stats!
   const eloToKeep = Number(currentSessionProfile?.elo) || DEFAULT_ELO;
+  const rdToKeep = Number(currentSessionProfile?.rd) || GLICKO_DEFAULTS.RD;
+  const volToKeep = Number(currentSessionProfile?.vol) || GLICKO_DEFAULTS.VOLATILITY;
   const winsToKeep = Number(currentSessionProfile?.wins) || 0;
   const lossesToKeep = Number(currentSessionProfile?.losses) || 0;
   const drawsToKeep = Number(currentSessionProfile?.draws) || 0;
@@ -115,6 +118,8 @@ export async function registerUsernameWithAuth(rawUsername, password, currentSes
     userId: user.uid,
     username: rawUsername.trim(),
     elo: eloToKeep,
+    rd: rdToKeep,
+    vol: volToKeep,
     wins: winsToKeep,
     losses: lossesToKeep,
     draws: drawsToKeep,
@@ -133,28 +138,23 @@ export async function registerUsernameWithAuth(rawUsername, password, currentSes
 }
 
 /**
- * Computes the Elo change for both players.
+ * Computes the Glicko-2 rating change for both players.
  * outcome: 1 if white won, 0 if black won, 0.5 if draw.
  */
-export function calculateEloDelta(whiteElo, blackElo, outcome) {
-  const wRating = Number(whiteElo) || DEFAULT_ELO;
-  const bRating = Number(blackElo) || DEFAULT_ELO;
-
-  // Expected scores
-  const expectedWhite = 1 / (1 + Math.pow(10, (bRating - wRating) / 400));
-  const expectedBlack = 1 / (1 + Math.pow(10, (wRating - bRating) / 400));
-
-  let actualWhite = outcome;
-  let actualBlack = 1 - outcome;
-
-  const deltaWhite = Math.round(K_FACTOR * (actualWhite - expectedWhite));
-  const deltaBlack = Math.round(K_FACTOR * (actualBlack - expectedBlack));
+export function calculateEloDelta(whiteElo, blackElo, outcome, whiteRd = GLICKO_DEFAULTS.RD, blackRd = GLICKO_DEFAULTS.RD) {
+  const res = calculateGlicko2Match(
+    { rating: whiteElo, rd: whiteRd, vol: GLICKO_DEFAULTS.VOLATILITY },
+    { rating: blackElo, rd: blackRd, vol: GLICKO_DEFAULTS.VOLATILITY },
+    outcome
+  );
 
   return {
-    whiteDelta: deltaWhite,
-    blackDelta: deltaBlack,
-    newWhiteElo: Math.max(100, wRating + deltaWhite),
-    newBlackElo: Math.max(100, bRating + deltaBlack)
+    whiteDelta: res.player1.delta,
+    blackDelta: res.player2.delta,
+    newWhiteElo: res.player1.rating,
+    newBlackElo: res.player2.rating,
+    whiteRd: res.player1.rd,
+    blackRd: res.player2.rd
   };
 }
 
@@ -201,6 +201,8 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
         userId,
         username: resolvedName,
         elo: Number(data.elo) || DEFAULT_ELO,
+        rd: Number(data.rd) || GLICKO_DEFAULTS.RD,
+        vol: Number(data.vol) || GLICKO_DEFAULTS.VOLATILITY,
         gamesPlayed: Number(data.gamesPlayed) || 0,
         wins: Number(data.wins) || 0,
         losses: Number(data.losses) || 0,
@@ -213,6 +215,8 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
         userId,
         username: localName || null,
         elo: DEFAULT_ELO,
+        rd: GLICKO_DEFAULTS.RD,
+        vol: GLICKO_DEFAULTS.VOLATILITY,
         gamesPlayed: 0,
         wins: 0,
         losses: 0,
@@ -242,6 +246,8 @@ export async function getOrCreateProfile(userId, isAuthUser = false, email = nul
       userId,
       username: localName || null,
       elo: DEFAULT_ELO,
+      rd: GLICKO_DEFAULTS.RD,
+      vol: GLICKO_DEFAULTS.VOLATILITY,
       gamesPlayed: 0,
       wins: 0,
       losses: 0,
@@ -266,9 +272,22 @@ export async function updateUsername(userId, newName) {
   }
 }
 
+function appendLocalRatingHistory(userId, point) {
+  try {
+    const key = `simulchess_rating_history_${userId}`;
+    const raw = localStorage.getItem(key);
+    const list = raw ? JSON.parse(raw) : [];
+    list.push(point);
+    if (list.length > 100) list.shift();
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch (e) {
+    console.warn("Failed to append local rating history:", e);
+  }
+}
+
 /**
- * Updates both players' stats and ratings after a match ends.
- * Guarantees atomic record if called once.
+ * Updates both players' stats and Glicko ratings after a match ends.
+ * Records rating progression points in database and localStorage.
  */
 export async function recordMatchOutcome(whiteUserId, blackUserId, winnerStatus) {
   if (!whiteUserId || !blackUserId) return null;
@@ -284,11 +303,14 @@ export async function recordMatchOutcome(whiteUserId, blackUserId, winnerStatus)
       getOrCreateProfile(blackUserId, !blackUserId.startsWith('user_'))
     ]);
 
-    const { whiteDelta, blackDelta, newWhiteElo, newBlackElo } = calculateEloDelta(
-      whiteProfile.elo,
-      blackProfile.elo,
+    const glickoResult = calculateGlicko2Match(
+      { rating: whiteProfile.elo, rd: whiteProfile.rd, vol: whiteProfile.vol },
+      { rating: blackProfile.elo, rd: blackProfile.rd, vol: blackProfile.vol },
       outcome
     );
+
+    const whiteUpdated = glickoResult.player1;
+    const blackUpdated = glickoResult.player2;
 
     const whiteWins = outcome === 1 ? (whiteProfile.wins || 0) + 1 : (whiteProfile.wins || 0);
     const whiteLosses = outcome === 0 ? (whiteProfile.losses || 0) + 1 : (whiteProfile.losses || 0);
@@ -298,36 +320,113 @@ export async function recordMatchOutcome(whiteUserId, blackUserId, winnerStatus)
     const blackLosses = outcome === 1 ? (blackProfile.losses || 0) + 1 : (blackProfile.losses || 0);
     const blackDraws = outcome === 0.5 ? (blackProfile.draws || 0) + 1 : (blackProfile.draws || 0);
 
+    const now = Date.now();
+
+    const whitePoint = {
+      timestamp: now,
+      rating: whiteUpdated.rating,
+      rd: whiteUpdated.rd,
+      delta: whiteUpdated.delta,
+      opponentName: blackProfile.username || 'Anonymous',
+      opponentRating: blackProfile.elo,
+      result: outcome === 1 ? 'win' : outcome === 0 ? 'loss' : 'draw'
+    };
+
+    const blackPoint = {
+      timestamp: now,
+      rating: blackUpdated.rating,
+      rd: blackUpdated.rd,
+      delta: blackUpdated.delta,
+      opponentName: whiteProfile.username || 'Anonymous',
+      opponentRating: whiteProfile.elo,
+      result: outcome === 0 ? 'win' : outcome === 1 ? 'loss' : 'draw'
+    };
+
+    appendLocalRatingHistory(whiteUserId, whitePoint);
+    appendLocalRatingHistory(blackUserId, blackPoint);
+
     // Update in Firebase
     await Promise.all([
       update(ref(db, `users/${whiteUserId}`), {
-        elo: newWhiteElo,
+        elo: whiteUpdated.rating,
+        rd: whiteUpdated.rd,
+        vol: whiteUpdated.vol,
         gamesPlayed: (whiteProfile.gamesPlayed || 0) + 1,
         wins: whiteWins,
         losses: whiteLosses,
         draws: whiteDraws,
-        lastMatch: Date.now()
+        lastMatch: now
       }),
       update(ref(db, `users/${blackUserId}`), {
-        elo: newBlackElo,
+        elo: blackUpdated.rating,
+        rd: blackUpdated.rd,
+        vol: blackUpdated.vol,
         gamesPlayed: (blackProfile.gamesPlayed || 0) + 1,
         wins: blackWins,
         losses: blackLosses,
         draws: blackDraws,
-        lastMatch: Date.now()
-      })
+        lastMatch: now
+      }),
+      push(ref(db, `ratingHistory/${whiteUserId}`), whitePoint).catch(() => {}),
+      push(ref(db, `ratingHistory/${blackUserId}`), blackPoint).catch(() => {})
     ]);
 
     return {
-      whiteDelta,
-      blackDelta,
-      newWhiteElo,
-      newBlackElo
+      whiteDelta: whiteUpdated.delta,
+      blackDelta: blackUpdated.delta,
+      newWhiteElo: whiteUpdated.rating,
+      newBlackElo: blackUpdated.rating,
+      whiteRd: whiteUpdated.rd,
+      blackRd: blackUpdated.rd
     };
   } catch (err) {
     console.error("Failed to record match outcome:", err);
     return null;
   }
+}
+
+/**
+ * Retrieves the chronological rating history for a player.
+ */
+export async function getRatingHistory(userId, currentProfile = null) {
+  if (!userId) return [];
+  const localKey = `simulchess_rating_history_${userId}`;
+  let historyList = [];
+  try {
+    const raw = localStorage.getItem(localKey);
+    if (raw) historyList = JSON.parse(raw);
+  } catch (e) {
+    console.warn("Could not read local rating history:", e);
+  }
+
+  try {
+    const snap = await get(ref(db, `ratingHistory/${userId}`));
+    if (snap.exists()) {
+      const dbObj = snap.val();
+      const dbList = Object.values(dbObj);
+      if (dbList.length >= historyList.length) {
+        historyList = dbList;
+        localStorage.setItem(localKey, JSON.stringify(historyList));
+      }
+    }
+  } catch (err) {
+    console.warn("Error fetching remote rating history:", err);
+  }
+
+  historyList.sort((a, b) => a.timestamp - b.timestamp);
+
+  // If no points exist, provide initial baseline point
+  if (historyList.length === 0 && currentProfile) {
+    historyList = [{
+      timestamp: currentProfile.createdAt || Date.now(),
+      rating: currentProfile.elo || GLICKO_DEFAULTS.RATING,
+      rd: currentProfile.rd || GLICKO_DEFAULTS.RD,
+      delta: 0,
+      isBaseline: true
+    }];
+  }
+
+  return historyList;
 }
 
 /**
