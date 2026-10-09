@@ -20,8 +20,7 @@ import {
   Zap,
   Flame,
   Radio,
-  BookOpen,
-  Bot
+  BookOpen
 } from 'lucide-react';
 import GameArena from './GameArena';
 import HowToPlayModal from './HowToPlayModal';
@@ -615,46 +614,9 @@ export default function App() {
     }
   }, [userId, profile, selectedVariant]);
 
-  // Start instant practice match vs SimulBot
-  const handlePlayBot = useCallback(async (variant = selectedVariant) => {
-    setSelectedVariant(variant);
-    setLoadingMsg("Starting bot match...");
-    setErrorMsg('');
-    try {
-      const newRoomId = 'BOT-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-      const initialGame = createInitialGameState(variant);
-      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
-      const myElo = profile?.elo || 1200;
 
-      initialGame.players = { w: userId, b: 'BOT_SIMUL' };
-      initialGame.playerMeta = {
-        w: { userId, username: myName, elo: myElo },
-        b: { userId: 'BOT_SIMUL', username: 'SimulBot (1500)', elo: 1500, isBot: true }
-      };
-      initialGame.status = 'playing';
-      initialGame.variant = variant;
-      initialGame.isBot = true;
-      initialGame.isRated = false;
-      initialGame.timer = {
-        enabled: true,
-        turnLimit: 60,
-        banks: { w: 150, b: 150 },
-        turnStartedAt: Date.now()
-      };
 
-      await set(ref(db, `games/${newRoomId}`), initialGame);
-      setColor('w');
-      setRoomId(newRoomId);
-      window.history.pushState({ inGame: true, roomId: newRoomId }, '', `?room=${newRoomId}`);
-    } catch (err) {
-      console.error(err);
-      setErrorMsg("Failed to start bot match: " + err.message);
-    } finally {
-      setLoadingMsg('');
-    }
-  }, [userId, profile, selectedVariant]);
-
-  // Quick pairing trigger from Lichess grid
+  // Quick match trigger from Lichess grid
   const handleQuickPair = useCallback((variant = 'standard', isRated = true) => {
     setSelectedVariant(variant);
     if (!hasChosenName && isRated) {
@@ -1121,16 +1083,6 @@ export default function App() {
                     <span className="lichess-btn-label">Challenge a friend</span>
                   </button>
 
-                  <button 
-                    type="button"
-                    className="lichess-sidebar-btn"
-                    onClick={() => handlePlayBot(selectedVariant)}
-                  >
-                    <div className="lichess-btn-icon-wrap">
-                      <Bot size={22} />
-                    </div>
-                    <span className="lichess-btn-label">Play against computer</span>
-                  </button>
                 </div>
 
 
@@ -1174,7 +1126,7 @@ export default function App() {
                     className={`lichess-tab-nav-btn ${lobbyTab === 'quick' ? 'active' : ''}`}
                     onClick={() => setLobbyTab('quick')}
                   >
-                    Quick pairing
+                    Quick Match
                   </button>
                   <button 
                     type="button"
@@ -1192,7 +1144,7 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Tab 1: Quick Pairing Grid */}
+                {/* Tab 1: Quick Match Grid */}
                 {lobbyTab === 'quick' && (
                   <div className="lichess-quick-wrapper">
                     {/* Radar overlay when searching */}
@@ -1261,25 +1213,6 @@ export default function App() {
                           <div className="tile-sub-text">Fast skirmish</div>
                         </button>
 
-                        {/* Tile 5: Bot 8x8 */}
-                        <button 
-                          type="button"
-                          className="quick-tile"
-                          onClick={() => handlePlayBot('standard')}
-                        >
-                          <div className="tile-primary-text">vs Computer</div>
-                          <div className="tile-sub-text">8×8 Practice</div>
-                        </button>
-
-                        {/* Tile 6: Bot 6x6 */}
-                        <button 
-                          type="button"
-                          className="quick-tile"
-                          onClick={() => handlePlayBot('skirmish')}
-                        >
-                          <div className="tile-primary-text">vs Computer</div>
-                          <div className="tile-sub-text">6×6 Practice</div>
-                        </button>
                       </div>
                     )}
                   </div>
@@ -1593,23 +1526,11 @@ export default function App() {
                   <Users size={16} />
                   <span>Create Private Room (Invite Friend)</span>
                 </button>
-
-                <button 
-                  type="button"
-                  className="btn btn-secondary btn-full"
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    handlePlayBot(createModalVariant);
-                  }}
-                >
-                  <Bot size={16} />
-                  <span>Play vs Computer</span>
-                </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Incoming Match Challenge Popup */}
       {incomingChallenge && (

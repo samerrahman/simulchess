@@ -40,7 +40,6 @@ import {
 } from './gameLogic';
 import { recordMatchOutcome, calculateEloDelta } from './eloService';
 import { sounds } from './soundEffects';
-import { getBotMove } from './botEngine';
 
 const EMOJIS = ['👏', '😮', '💀', '🔥', '🤔', '🤝'];
 
@@ -77,14 +76,7 @@ export default function GameArena(props) {
   const myColor = color;
   const enemyColor = color === 'w' ? 'b' : 'w';
 
-  const isBotGame = Boolean(
-    gameState?.isBot ||
-    gameState?.playerMeta?.b?.isBot ||
-    gameState?.playerMeta?.w?.isBot ||
-    (gameState?.players?.w && String(gameState.players.w).toLowerCase().includes('bot')) ||
-    (gameState?.players?.b && String(gameState.players.b).toLowerCase().includes('bot'))
-  );
-  const isUnrated = Boolean(gameState?.isRated === false || isBotGame);
+  const isUnrated = Boolean(gameState?.isRated === false);
 
   const myStatus = !isSpectator && gameState?.submitted ? !!gameState.submitted[myColor] : false;
   const enemyStatus = !isSpectator && gameState?.submitted ? !!gameState.submitted[enemyColor] : false;
@@ -383,30 +375,7 @@ export default function GameArena(props) {
     }
   }, [gameState, myColor, roomId, eloResult, isUnrated]);
 
-  // Automated bot move submission if opponent is a computer engine
-  useEffect(() => {
-    if (!gameState || gameState.status !== 'playing' || !roomId || myColor !== 'w') return;
-    const isBot = Boolean(gameState.isBot || gameState.playerMeta?.b?.isBot);
-    if (!isBot || gameState.submitted?.b) return;
 
-    const botTimer = setTimeout(async () => {
-      const botMove = getBotMove(
-        gameState.board,
-        'b',
-        gameState.castlingRights,
-        gameState.enPassantTarget,
-        gameState.variant || 'standard'
-      );
-      if (botMove) {
-        await update(ref(db, `games/${roomId}`), {
-          [`pendingMoves/b`]: botMove,
-          [`submitted/b`]: true
-        });
-      }
-    }, 650);
-
-    return () => clearTimeout(botTimer);
-  }, [gameState, myColor, roomId]);
 
   // Immediately lock in move on piece placement
   async function handleMovePiece(move) {
@@ -832,9 +801,9 @@ export default function GameArena(props) {
                       ? `${whiteMeta?.username || 'White'} Won`
                       : `${blackMeta?.username || 'Black'} Won`}
                   </span>
-                  {eloResult?.isUnrated && (
+                  {isUnrated && (
                     <span className="summary-unrated-tag">
-                      {eloResult.isBot ? "Practice vs Computer" : "Unrated Match"}
+                      Casual Match
                     </span>
                   )}
                 </div>
@@ -1245,19 +1214,17 @@ export default function GameArena(props) {
             </p>
 
             {/* Elo Rating Delta Card */}
-            {!isSpectator && eloResult && (
-              eloResult.isUnrated ? (
+            {!isSpectator && (
+              isUnrated ? (
                 <div className="modal-elo-box modal-unrated-box">
                   <div className="unrated-badge-row">
-                    <span className="unrated-pill">
-                      {eloResult.isBot ? "Practice vs Computer" : "Casual Match"}
-                    </span>
+                    <span className="unrated-pill">Casual Match</span>
                   </div>
                   <div className="unrated-note">
                     Rating unaffected • This was an unrated game.
                   </div>
                 </div>
-              ) : (
+              ) : eloResult ? (
                 <div className="modal-elo-box">
                   <span className="elo-change-title">Rating Adjustment</span>
                   <div className="elo-change-row">
@@ -1281,7 +1248,7 @@ export default function GameArena(props) {
                     </div>
                   </div>
                 </div>
-              )
+              ) : null
             )}
 
             <div className="modal-actions">
