@@ -54,6 +54,47 @@ import {
   subscribeToFriends
 } from './friendService';
 
+function PlayfieldGraphic({ size = 8 }) {
+  const sq = 48 / size;
+  const squares = [];
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const isLight = (r + c) % 2 === 0;
+      squares.push(
+        <rect
+          key={`${r}-${c}`}
+          x={c * sq}
+          y={r * sq}
+          width={sq}
+          height={sq}
+          fill={isLight ? 'var(--board-light, #8f9bb3)' : 'var(--board-dark, #2e384d)'}
+        />
+      );
+    }
+  }
+
+  return (
+    <svg
+      width={44}
+      height={44}
+      viewBox="0 0 48 48"
+      className={`playfield-graphic playfield-graphic-${size}`}
+      aria-hidden="true"
+    >
+      <rect width="48" height="48" rx="3" fill="var(--board-dark, #2e384d)" />
+      {squares}
+      <rect
+        width="48"
+        height="48"
+        rx="3"
+        fill="none"
+        stroke="var(--border-light, #334469)"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
 export default function App() {
   // Navigation: 'play' | 'profile' | 'settings'
   const [navTab, setNavTab] = useState('play');
@@ -1014,16 +1055,16 @@ export default function App() {
                   className={`variant-toggle-btn ${selectedVariant === 'standard' ? 'active' : ''}`}
                   onClick={() => setSelectedVariant('standard')}
                 >
+                  <PlayfieldGraphic size={8} />
                   <span className="variant-name">Standard (8x8)</span>
-                  <span className="variant-summary">Classic simultaneous chess</span>
                 </button>
                 <button
                   type="button"
                   className={`variant-toggle-btn ${selectedVariant === 'skirmish' ? 'active' : ''}`}
                   onClick={() => setSelectedVariant('skirmish')}
                 >
+                  <PlayfieldGraphic size={6} />
                   <span className="variant-name">Skirmish (6x6)</span>
-                  <span className="variant-summary">Compact board • Queen replaced by Knight</span>
                 </button>
               </div>
             </div>

@@ -129,7 +129,7 @@ export default function RatingHistoryChart({ history = [], currentRating, curren
           <div>
             <h3 className="rating-chart-title">Rating Progression</h3>
             <span className="rating-chart-sub">
-              Glicko-2 rating over time
+              Rating over time
             </span>
           </div>
         </div>
@@ -299,7 +299,7 @@ export default function RatingHistoryChart({ history = [], currentRating, curren
 
       {points.length <= 1 && (
         <div className="chart-empty-hint">
-          <span>Play rated matches to build your Glicko-2 rating history.</span>
+          <span>Play rated matches to build your rating history.</span>
         </div>
       )}
     </div>

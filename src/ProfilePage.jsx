@@ -123,7 +123,7 @@ export default function ProfilePage({
         {/* Stats Grid */}
         <div className="profile-stats-grid">
           <div className="stat-card">
-            <span className="stat-card-label">Glicko-2 Rating</span>
+            <span className="stat-card-label">Rating</span>
             <div className="stat-card-value elo-highlight">
               {elo}
               <span className="stat-card-sub-rd"> ±{Math.round(rd)}</span>
