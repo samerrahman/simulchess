@@ -16,7 +16,15 @@ import {
   TrendingDown,
   Minus,
   Loader2,
-  Clock
+  Clock,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  ChevronLeft,
+  ChevronRight,
+  Film,
+  X
 } from 'lucide-react';
 import HowToPlayModal from './HowToPlayModal';
 import { ref, update } from 'firebase/database';
@@ -27,6 +35,7 @@ import {
   getLegalMoves, 
   resolveTurn, 
   createInitialGameState, 
+  createInitialBoard,
   pieceName 
 } from './gameLogic';
 import { recordMatchOutcome, calculateEloDelta } from './eloService';
@@ -58,9 +67,24 @@ export default function GameArena(props) {
   // Elo post-game calculation record
   const [eloResult, setEloResult] = useState(null);
 
+  // Turn-by-turn post-game review & auto-play state
+  const [reviewTurnIndex, setReviewTurnIndex] = useState(null);
+  const [isPlayingReplay, setIsPlayingReplay] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(1200);
+  const [isModalDismissed, setIsModalDismissed] = useState(false);
+
   const isSpectator = color === 'spectator';
   const myColor = color;
   const enemyColor = color === 'w' ? 'b' : 'w';
+
+  const isBotGame = Boolean(
+    gameState?.isBot ||
+    gameState?.playerMeta?.b?.isBot ||
+    gameState?.playerMeta?.w?.isBot ||
+    (gameState?.players?.w && String(gameState.players.w).toLowerCase().includes('bot')) ||
+    (gameState?.players?.b && String(gameState.players.b).toLowerCase().includes('bot'))
+  );
+  const isUnrated = Boolean(gameState?.isRated === false || isBotGame);
 
   const myStatus = !isSpectator && gameState?.submitted ? !!gameState.submitted[myColor] : false;
   const enemyStatus = !isSpectator && gameState?.submitted ? !!gameState.submitted[enemyColor] : false;
@@ -238,13 +262,6 @@ export default function GameArena(props) {
       const blackSan = gameState.pendingMoves?.b?.san || 
         (gameState.pendingMoves?.b ? `${gameState.pendingMoves.b.from}➔${gameState.pendingMoves.b.to}` : 'None');
 
-      const newHistoryEntry = {
-        turn: gameState.turnCount || 1,
-        whiteMove: whiteSan,
-        blackMove: blackSan,
-        events: turnResult.events || []
-      };
-
       const whitePending = gameState.pendingMoves?.w;
       const blackPending = gameState.pendingMoves?.b;
 
@@ -254,6 +271,17 @@ export default function GameArena(props) {
           ...(whitePending ? [{ ...whitePending, color: 'w' }] : []),
           ...(blackPending ? [{ ...blackPending, color: 'b' }] : [])
         ]
+      };
+
+      const newHistoryEntry = {
+        turn: gameState.turnCount || 1,
+        whiteMove: whiteSan,
+        blackMove: blackSan,
+        events: turnResult.events || [],
+        boardAfter: turnResult.newBoard,
+        boardBefore: gameState.board,
+        lastMoves: lastMovesRecord,
+        capturedPieces: mergedCaptured
       };
 
       const currentTimer = gameState?.timer;
@@ -304,6 +332,12 @@ export default function GameArena(props) {
     const isFinished = ['w_won', 'b_won', 'draw'].includes(gameState.status);
     if (!isFinished) return;
 
+    const whiteId = gameState.players?.w;
+    const blackId = gameState.players?.b;
+
+    // Bot matches and unrated games never calculate or adjust Elo
+    if (isUnrated) return;
+
     // If room already stored the calculated elo results, show them
     if (gameState.eloSummary) {
       const summaryTimer = setTimeout(() => {
@@ -314,8 +348,6 @@ export default function GameArena(props) {
 
     // Process once by the primary resolver
     const isPrimaryResolver = myColor === 'w' || (myColor === 'b' && !gameState.players?.w);
-    const whiteId = gameState.players?.w;
-    const blackId = gameState.players?.b;
 
     if (isPrimaryResolver && whiteId && blackId && !gameState.eloProcessed) {
       // Mark as processed in room to prevent double-invocations
@@ -349,7 +381,7 @@ export default function GameArena(props) {
       }, 0);
       return () => clearTimeout(previewTimer);
     }
-  }, [gameState, myColor, roomId, eloResult]);
+  }, [gameState, myColor, roomId, eloResult, isUnrated]);
 
   // Automated bot move submission if opponent is a computer engine
   useEffect(() => {
@@ -422,6 +454,132 @@ export default function GameArena(props) {
     });
   }, [reactionCooldown, roomId, isSpectator, myColor]);
 
+  const isGameOver = Boolean(gameState && ['w_won', 'b_won', 'draw'].includes(gameState.status));
+
+  // Turn-by-turn replay positions array (Turn 0 through Final Turn)
+  const replayPositions = useMemo(() => {
+    if (!gameState) return [];
+    const variant = gameState.variant || 'standard';
+    const initBoard = createInitialBoard(variant);
+    const list = [
+      {
+        turn: 0,
+        board: initBoard,
+        whiteMove: null,
+        blackMove: null,
+        events: [],
+        lastMoves: null,
+        label: 'Starting Position'
+      }
+    ];
+
+    if (Array.isArray(gameState.history)) {
+      gameState.history.forEach((entry, idx) => {
+        const b = entry.boardAfter || (idx === gameState.history.length - 1 ? gameState.board : null);
+        list.push({
+          turn: entry.turn || idx + 1,
+          board: b || list[list.length - 1]?.board || initBoard,
+          whiteMove: entry.whiteMove,
+          blackMove: entry.blackMove,
+          events: entry.events || [],
+          lastMoves: entry.lastMoves || null,
+          label: `Turn ${entry.turn || idx + 1}`
+        });
+      });
+    }
+
+    return list;
+  }, [gameState]);
+
+
+
+  // Auto-play interval for smooth turn-by-turn re-watch
+  useEffect(() => {
+    if (!isPlayingReplay) return;
+    const interval = setInterval(() => {
+      setReviewTurnIndex((prev) => {
+        const current = prev ?? 0;
+        if (current >= replayPositions.length - 1) {
+          setIsPlayingReplay(false);
+          return current;
+        }
+        return current + 1;
+      });
+    }, replaySpeed);
+    return () => clearInterval(interval);
+  }, [isPlayingReplay, replayPositions.length, replaySpeed]);
+
+  const isReviewing = isGameOver && reviewTurnIndex !== null;
+  const currentReviewPos = isReviewing && replayPositions[reviewTurnIndex] 
+    ? replayPositions[reviewTurnIndex] 
+    : (isGameOver && replayPositions.length > 0 ? replayPositions[replayPositions.length - 1] : null);
+
+  const displayBoard = isReviewing && currentReviewPos ? currentReviewPos.board : (gameState?.board || {});
+  const displayLastMoves = isReviewing && currentReviewPos ? currentReviewPos.lastMoves : (gameState?.lastMoves || null);
+  const displayEvents = isReviewing && currentReviewPos ? currentReviewPos.events : (gameState?.lastEvents || []);
+
+  const handleStepFirst = useCallback(() => {
+    setIsModalDismissed(true);
+    setIsPlayingReplay(false);
+    setReviewTurnIndex(0);
+  }, []);
+
+  const handleStepPrev = useCallback(() => {
+    setIsModalDismissed(true);
+    setIsPlayingReplay(false);
+    setReviewTurnIndex((prev) => Math.max(0, (prev ?? replayPositions.length - 1) - 1));
+  }, [replayPositions.length]);
+
+  const handleStepNext = useCallback(() => {
+    setIsModalDismissed(true);
+    setIsPlayingReplay(false);
+    setReviewTurnIndex((prev) => Math.min(replayPositions.length - 1, (prev ?? 0) + 1));
+  }, [replayPositions.length]);
+
+  const handleStepLast = useCallback(() => {
+    setIsModalDismissed(true);
+    setIsPlayingReplay(false);
+    setReviewTurnIndex(replayPositions.length - 1);
+  }, [replayPositions.length]);
+
+  const handleTogglePlayReplay = useCallback(() => {
+    setIsModalDismissed(true);
+    if (isPlayingReplay) {
+      setIsPlayingReplay(false);
+    } else {
+      if (reviewTurnIndex === null || reviewTurnIndex >= replayPositions.length - 1) {
+        setReviewTurnIndex(0);
+      }
+      setIsPlayingReplay(true);
+    }
+  }, [isPlayingReplay, reviewTurnIndex, replayPositions.length]);
+
+  // Keyboard navigation when match ends
+  useEffect(() => {
+    if (!isGameOver) return;
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) return;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleStepPrev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleStepNext();
+      } else if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        handleTogglePlayReplay();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        handleStepFirst();
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        handleStepLast();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isGameOver, handleStepPrev, handleStepNext, handleTogglePlayReplay, handleStepFirst, handleStepLast]);
+
   // Early return loading screen if gameState hasn't arrived yet from Firebase
   if (!gameState) {
     return (
@@ -473,9 +631,9 @@ export default function GameArena(props) {
 
     // If opponent already requested rematch, accepting starts the new game!
     if (enemyRematchOffer) {
-      const initial = createInitialGameState();
+      const initial = createInitialGameState(gameState?.variant || 'standard');
       const updatedMeta = { ...gameState.playerMeta };
-      if (eloResult) {
+      if (eloResult && !eloResult.isUnrated) {
         if (updatedMeta.w) updatedMeta.w.elo = eloResult.newWhiteElo;
         if (updatedMeta.b) updatedMeta.b.elo = eloResult.newBlackElo;
       }
@@ -498,6 +656,9 @@ export default function GameArena(props) {
       });
       setStagedInfo({ turn: 1, move: null });
       setEloResult(null);
+      setReviewTurnIndex(null);
+      setIsPlayingReplay(false);
+      setIsModalDismissed(false);
     } else {
       // Otherwise record my offer in Firebase
       await update(ref(db, `games/${roomId}/rematchOffers`), {
@@ -506,7 +667,6 @@ export default function GameArena(props) {
     }
   }
 
-  const isGameOver = ['w_won', 'b_won', 'draw'].includes(gameState.status);
   const isWaiting = gameState.status === 'waiting' || !gameState.players?.[enemyColor];
 
   const myCaptured = (gameState.capturedPieces && gameState.capturedPieces[enemyColor]) || [];
@@ -660,19 +820,175 @@ export default function GameArena(props) {
 
           {/* Interactive Chessboard */}
           <div className="chessboard-center-stage">
+            {/* Post-Game Sleek Top Summary Bar (when modal is dismissed) */}
+            {isGameOver && isModalDismissed && (
+              <div className="game-over-summary-bar">
+                <div className="summary-bar-text">
+                  <Trophy size={16} className="summary-trophy-icon" />
+                  <span className="summary-title">
+                    {gameState.status === 'draw'
+                      ? 'Game Drawn'
+                      : gameState.status === 'w_won'
+                      ? `${whiteMeta?.username || 'White'} Won`
+                      : `${blackMeta?.username || 'Black'} Won`}
+                  </span>
+                  {eloResult?.isUnrated && (
+                    <span className="summary-unrated-tag">
+                      {eloResult.isBot ? "Practice vs Computer" : "Unrated Match"}
+                    </span>
+                  )}
+                </div>
+                <div className="summary-bar-actions">
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-secondary" 
+                    onClick={() => setIsModalDismissed(false)}
+                  >
+                    View Summary
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`btn btn-sm ${myRematchOffer ? 'btn-secondary' : 'btn-primary'}`} 
+                    onClick={handleOfferRematch}
+                    disabled={myRematchOffer}
+                  >
+                    <RotateCcw size={14} />
+                    {myRematchOffer ? "Offered" : enemyRematchOffer ? "Accept Rematch" : "Rematch"}
+                  </button>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={onLeaveRoom}>
+                    Lobby
+                  </button>
+                </div>
+              </div>
+            )}
+
             <NativeChessboard
-              board={gameState.board || {}}
+              board={displayBoard}
               playerColor={myColor}
               orientation={orientation}
-              legalMoves={legalMoves}
-              intendedMove={intendedMove}
+              legalMoves={isReviewing ? [] : legalMoves}
+              intendedMove={isReviewing ? null : intendedMove}
               onStageMove={handleMovePiece}
-              isLocked={myStatus}
-              disabled={gameState.status !== 'playing'}
-              lastEvents={gameState.lastEvents || []}
-              lastMoves={gameState.lastMoves || null}
+              isLocked={isReviewing ? true : myStatus}
+              disabled={isReviewing ? true : gameState.status !== 'playing'}
+              lastEvents={displayEvents}
+              lastMoves={displayLastMoves}
               variant={gameState.variant || 'standard'}
             />
+
+            {/* Turn-by-Turn Replay & Re-watch Bar */}
+            {isGameOver && (
+              <div className="replay-controls-card">
+                <div className="replay-info-bar">
+                  <div className="replay-turn-indicator">
+                    <span className="replay-turn-pill">
+                      {reviewTurnIndex === 0 
+                        ? 'Starting Position' 
+                        : `Turn ${reviewTurnIndex ?? (replayPositions.length - 1)} / ${Math.max(1, replayPositions.length - 1)}`}
+                    </span>
+                    {currentReviewPos && currentReviewPos.turn > 0 && (
+                      <div className="replay-turn-moves">
+                        <span className="replay-move-tag white-tag">
+                          <span className="mini-icon">♔</span> {currentReviewPos.whiteMove || '—'}
+                        </span>
+                        <span className="replay-move-tag black-tag">
+                          <span className="mini-icon">♚</span> {currentReviewPos.blackMove || '—'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {currentReviewPos?.events && currentReviewPos.events.length > 0 && (
+                    <div className="replay-turn-events">
+                      {currentReviewPos.events.map((evt, idx) => (
+                        <span key={idx} className={`event-note event-note-${evt.type}`}>
+                          {evt.message}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Scrubber slider */}
+                <div className="replay-scrubber-row">
+                  <input 
+                    type="range"
+                    min={0}
+                    max={Math.max(0, replayPositions.length - 1)}
+                    value={reviewTurnIndex ?? (replayPositions.length - 1)}
+                    onChange={(e) => {
+                      setIsModalDismissed(true);
+                      setIsPlayingReplay(false);
+                      setReviewTurnIndex(Number(e.target.value));
+                    }}
+                    className="replay-slider"
+                    aria-label="Turn scrubber slider"
+                  />
+                </div>
+
+                {/* Playback Buttons */}
+                <div className="replay-btn-row">
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-icon replay-btn" 
+                    onClick={handleStepFirst} 
+                    title="Rewind to start (Home)"
+                    disabled={reviewTurnIndex === 0}
+                  >
+                    <SkipBack size={16} />
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-icon replay-btn" 
+                    onClick={handleStepPrev} 
+                    title="Previous turn (Left Arrow)"
+                    disabled={reviewTurnIndex === 0}
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`btn btn-sm replay-btn replay-play-btn ${isPlayingReplay ? 'btn-active-play' : ''}`} 
+                    onClick={handleTogglePlayReplay} 
+                    title={isPlayingReplay ? "Pause (Space)" : "Play turn-by-turn re-watch (Space)"}
+                  >
+                    {isPlayingReplay ? <Pause size={17} /> : <Play size={17} />}
+                    <span>{isPlayingReplay ? 'Pause' : 'Re-watch'}</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-icon replay-btn" 
+                    onClick={handleStepNext} 
+                    title="Next turn (Right Arrow)"
+                    disabled={reviewTurnIndex !== null && reviewTurnIndex >= replayPositions.length - 1}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-icon replay-btn" 
+                    onClick={handleStepLast} 
+                    title="Latest turn (End)"
+                    disabled={reviewTurnIndex !== null && reviewTurnIndex >= replayPositions.length - 1}
+                  >
+                    <SkipForward size={16} />
+                  </button>
+
+                  {/* Speed Selector */}
+                  <select 
+                    className="replay-speed-select"
+                    value={replaySpeed}
+                    onChange={(e) => setReplaySpeed(Number(e.target.value))}
+                    title="Replay playback speed"
+                  >
+                    <option value={1800}>0.75x</option>
+                    <option value={1200}>1x</option>
+                    <option value={800}>1.5x</option>
+                    <option value={500}>2x</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* You Strip (Bottom) */}
@@ -823,34 +1139,61 @@ export default function GameArena(props) {
           <div className="history-card">
             <h4 className="history-card-title">Turn Log</h4>
             <div className="history-scroll">
+              {isGameOver && (
+                <button 
+                  type="button"
+                  className={`history-starting-pos-btn ${reviewTurnIndex === 0 ? 'active' : ''}`}
+                  onClick={() => {
+                    setIsModalDismissed(true);
+                    setReviewTurnIndex(0);
+                    setIsPlayingReplay(false);
+                  }}
+                >
+                  ⏮ Starting Position
+                </button>
+              )}
               {(!gameState.history || gameState.history.length === 0) ? (
                 <div className="empty-history">Moves will appear here after each turn.</div>
               ) : (
                 <div className="history-list">
-                  {gameState.history.map((entry, idx) => (
-                    <div key={idx} className="history-row">
-                      <div className="history-row-main">
-                        <span className="turn-number-tag">#{entry.turn}</span>
-                        <div className="moves-pair">
-                          <span className="history-move white-move">
-                            <span className="mini-icon">♔</span> {entry.whiteMove}
-                          </span>
-                          <span className="history-move black-move">
-                            <span className="mini-icon">♚</span> {entry.blackMove}
-                          </span>
-                        </div>
-                      </div>
-                      {entry.events && entry.events.length > 0 && (
-                        <div className="events-sublist">
-                          {entry.events.map((evt, eIdx) => (
-                            <span key={eIdx} className={`event-note event-note-${evt.type}`}>
-                              {evt.message}
+                  {gameState.history.map((entry, idx) => {
+                    const isThisTurnSelected = isGameOver && (reviewTurnIndex === (idx + 1));
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`history-row ${isThisTurnSelected ? 'history-row-active' : ''} ${isGameOver ? 'history-row-clickable' : ''}`}
+                        onClick={() => {
+                          if (isGameOver) {
+                            setIsModalDismissed(true);
+                            setReviewTurnIndex(idx + 1);
+                            setIsPlayingReplay(false);
+                          }
+                        }}
+                        title={isGameOver ? `Click to review Turn ${idx + 1}` : undefined}
+                      >
+                        <div className="history-row-main">
+                          <span className="turn-number-tag">#{entry.turn}</span>
+                          <div className="moves-pair">
+                            <span className="history-move white-move">
+                              <span className="mini-icon">♔</span> {entry.whiteMove}
                             </span>
-                          ))}
+                            <span className="history-move black-move">
+                              <span className="mini-icon">♚</span> {entry.blackMove}
+                            </span>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {entry.events && entry.events.length > 0 && (
+                          <div className="events-sublist">
+                            {entry.events.map((evt, eIdx) => (
+                              <span key={eIdx} className={`event-note event-note-${evt.type}`}>
+                                {evt.message}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -859,9 +1202,18 @@ export default function GameArena(props) {
       </main>
 
       {/* Game Over Modal with Elo Adjustment Display */}
-      {isGameOver && (
+      {isGameOver && !isModalDismissed && (
         <div className="modal-backdrop">
           <div className="game-over-modal">
+            <button 
+              type="button"
+              className="modal-close-icon-btn" 
+              onClick={() => setIsModalDismissed(true)} 
+              title="Close modal to review board"
+            >
+              <X size={20} />
+            </button>
+
             <div className="modal-icon-header">
               {gameState.status === 'draw' ? (
                 <AlertTriangle size={48} className="modal-icon-draw" />
@@ -894,34 +1246,70 @@ export default function GameArena(props) {
 
             {/* Elo Rating Delta Card */}
             {!isSpectator && eloResult && (
-              <div className="modal-elo-box">
-                <span className="elo-change-title">Rating Adjustment</span>
-                <div className="elo-change-row">
-                  <div className={`elo-delta-pill ${myDelta > 0 ? 'elo-plus' : myDelta < 0 ? 'elo-minus' : 'elo-even'}`}>
-                    {myDelta > 0 ? (
-                      <>
-                        <TrendingUp size={16} /> +{myDelta}
-                      </>
-                    ) : myDelta < 0 ? (
-                      <>
-                        <TrendingDown size={16} /> {myDelta}
-                      </>
-                    ) : (
-                      <>
-                        <Minus size={16} /> 0
-                      </>
-                    )}
+              eloResult.isUnrated ? (
+                <div className="modal-elo-box modal-unrated-box">
+                  <div className="unrated-badge-row">
+                    <span className="unrated-pill">
+                      {eloResult.isBot ? "Practice vs Computer" : "Casual Match"}
+                    </span>
                   </div>
-                  <div className="elo-calc-text">
-                    New Rating: <strong>{myNewElo}</strong>
+                  <div className="unrated-note">
+                    Rating unaffected • This was an unrated game.
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="modal-elo-box">
+                  <span className="elo-change-title">Rating Adjustment</span>
+                  <div className="elo-change-row">
+                    <div className={`elo-delta-pill ${myDelta > 0 ? 'elo-plus' : myDelta < 0 ? 'elo-minus' : 'elo-even'}`}>
+                      {myDelta > 0 ? (
+                        <>
+                          <TrendingUp size={16} /> +{myDelta}
+                        </>
+                      ) : myDelta < 0 ? (
+                        <>
+                          <TrendingDown size={16} /> {myDelta}
+                        </>
+                      ) : (
+                        <>
+                          <Minus size={16} /> 0
+                        </>
+                      )}
+                    </div>
+                    <div className="elo-calc-text">
+                      New Rating: <strong>{myNewElo}</strong>
+                    </div>
+                  </div>
+                </div>
+              )
             )}
 
             <div className="modal-actions">
               <button 
-                className={`btn btn-lg ${myRematchOffer ? 'btn-secondary' : 'btn-primary'}`} 
+                type="button"
+                className="btn btn-primary btn-lg"
+                onClick={() => {
+                  setIsModalDismissed(true);
+                  setReviewTurnIndex(0);
+                  setIsPlayingReplay(true);
+                }}
+              >
+                <Play size={18} />
+                <span>Re-watch Game (Auto-Play)</span>
+              </button>
+              <button 
+                type="button"
+                className="btn btn-secondary btn-lg"
+                onClick={() => {
+                  setIsModalDismissed(true);
+                  setReviewTurnIndex(replayPositions.length - 1);
+                }}
+              >
+                <Film size={18} />
+                <span>Rewind & Review Board</span>
+              </button>
+              <button 
+                className={`btn btn-lg ${myRematchOffer ? 'btn-secondary' : 'btn-outline'}`} 
                 onClick={handleOfferRematch}
                 disabled={myRematchOffer}
               >

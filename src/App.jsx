@@ -634,6 +634,7 @@ export default function App() {
       initialGame.status = 'playing';
       initialGame.variant = variant;
       initialGame.isBot = true;
+      initialGame.isRated = false;
       initialGame.timer = {
         enabled: true,
         turnLimit: 60,
@@ -1132,12 +1133,7 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Live stats */}
-                <div className="lichess-sidebar-stats">
-                  <span className="stat-highlight">1,482</span> players
-                  <span className="stat-sep">•</span>
-                  <span className="stat-highlight">419</span> games in play
-                </div>
+
 
                 {/* Quick Join by Code */}
                 <div className="lichess-quick-join-box">
