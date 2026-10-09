@@ -43,7 +43,7 @@ import {
   push, 
   onDisconnect 
 } from 'firebase/database';
-import { createInitialGameState } from './gameLogic';
+import { createInitialGameState, VARIANTS } from './gameLogic';
 import { getOrCreateProfile, updateUsername } from './eloService';
 import { 
   setupUserPresence, 
@@ -57,6 +57,19 @@ import {
 export default function App() {
   // Navigation: 'play' | 'profile' | 'settings'
   const [navTab, setNavTab] = useState('play');
+
+  // UI Design Style: 'handcrafted' | 'modern'
+  const [uiStyle, setUiStyle] = useState(() => {
+    return localStorage.getItem('simulchess_ui_style') || 'handcrafted';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-ui-style', uiStyle);
+    localStorage.setItem('simulchess_ui_style', uiStyle);
+  }, [uiStyle]);
+
+  // Game variant: 'standard' | 'skirmish'
+  const [selectedVariant, setSelectedVariant] = useState('standard');
 
   const [roomId, setRoomId] = useState('');
   const [inputRoomId, setInputRoomId] = useState('');
@@ -432,13 +445,20 @@ export default function App() {
       const activeProf = customProf || profile;
       const myName = activeProf?.username || `Guest_${userId.slice(-4).toUpperCase()}`;
       const myElo = activeProf?.elo || 1200;
+      const activeVariant = selectedVariant;
 
       const queueRef = ref(db, 'queue');
       const snap = await get(queueRef);
       const queueObj = snap.val();
 
       if (queueObj) {
-        for (const [qKey, queuedId] of Object.entries(queueObj)) {
+        for (const [qKey, queueVal] of Object.entries(queueObj)) {
+          const queuedId = typeof queueVal === 'string' ? queueVal : queueVal?.roomId;
+          const queuedVariant = typeof queueVal === 'object' ? (queueVal.variant || 'standard') : 'standard';
+
+          // Match only if the room's variant matches the selected variant
+          if (queuedVariant !== activeVariant) continue;
+
           await remove(ref(db, `queue/${qKey}`));
 
           const gameSnap = await get(ref(db, `games/${queuedId}`));
@@ -468,6 +488,11 @@ export default function App() {
               const fullPlayers = { ...data.players, [assignedColor]: userId };
               if (fullPlayers.w && fullPlayers.b && data.status === 'waiting') {
                 updates['status'] = 'playing';
+                // Auto-start Showdown ladder timer
+                updates['timer/enabled'] = true;
+                updates['timer/turnLimit'] = 60;
+                updates['timer/banks'] = { w: 150, b: 150 };
+                updates['timer/turnStartedAt'] = Date.now();
               }
               await update(ref(db, `games/${queuedId}`), updates);
               setGameState({ ...data, ...updates, players: fullPlayers });
@@ -486,16 +511,17 @@ export default function App() {
       } else {
         // No match in queue: Create room, add to queue, BUT STAY IN LOBBY until paired!
         const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const initialGame = createInitialGameState();
+        const initialGame = createInitialGameState(activeVariant);
         initialGame.players = { w: userId, b: null };
         initialGame.playerMeta = {
           w: { userId, username: myName, elo: myElo },
           b: null
         };
         initialGame.status = 'waiting';
+        initialGame.variant = activeVariant;
 
         await set(ref(db, `games/${newRoomId}`), initialGame);
-        const newQueueRef = await push(ref(db, 'queue'), newRoomId);
+        const newQueueRef = await push(ref(db, 'queue'), { roomId: newRoomId, variant: activeVariant });
         setQueueKey(newQueueRef.key);
         setQueuedRoomId(newRoomId);
         setColor('w');
@@ -506,7 +532,7 @@ export default function App() {
       setErrorMsg("Matchmaking error: " + err.message);
       setIsSearchingMatch(false);
     }
-  }, [userId, profile]);
+  }, [userId, profile, selectedVariant]);
 
   // Execute Private Room Creation
   const executeCreatePrivate = useCallback(async (customProf = null) => {
@@ -514,7 +540,7 @@ export default function App() {
     setErrorMsg('');
     try {
       const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const initialGame = createInitialGameState();
+      const initialGame = createInitialGameState(selectedVariant);
       const activeProf = customProf || profile;
       const myName = activeProf?.username || `Guest_${userId.slice(-4).toUpperCase()}`;
       const myElo = activeProf?.elo || 1200;
@@ -525,6 +551,7 @@ export default function App() {
         b: null
       };
       initialGame.status = 'waiting';
+      initialGame.variant = selectedVariant;
 
       await set(ref(db, `games/${newRoomId}`), initialGame);
       setColor('w');
@@ -536,7 +563,7 @@ export default function App() {
     } finally {
       setLoadingMsg('');
     }
-  }, [userId, profile]);
+  }, [userId, profile, selectedVariant]);
 
   // Public match button clicked
   function handleFindPublic() {
@@ -843,6 +870,14 @@ export default function App() {
           )}
 
           <button 
+            className="btn btn-secondary btn-xs ui-style-toggle-btn"
+            onClick={() => setUiStyle(s => s === 'handcrafted' ? 'modern' : 'handcrafted')}
+            title="Toggle between Hand-coded Showdown style and Modern look"
+          >
+            {uiStyle === 'handcrafted' ? 'Retro Style' : 'Modern Style'}
+          </button>
+
+          <button 
             className="btn-icon nav-help-btn"
             onClick={() => setShowHowToPlay(true)}
             title="How to Play SimulChess"
@@ -963,6 +998,34 @@ export default function App() {
                   </button>
                 </div>
               ) : null}
+            </div>
+
+            {/* Game Variant Selector */}
+            <div className="variant-selection-card">
+              <div className="variant-header-row">
+                <span className="variant-title-label">Game Mode</span>
+                <span className="variant-active-badge">
+                  {selectedVariant === 'skirmish' ? '6x6 Skirmish' : 'Standard 8x8'}
+                </span>
+              </div>
+              <div className="variant-buttons-row">
+                <button
+                  type="button"
+                  className={`variant-toggle-btn ${selectedVariant === 'standard' ? 'active' : ''}`}
+                  onClick={() => setSelectedVariant('standard')}
+                >
+                  <span className="variant-name">Standard (8x8)</span>
+                  <span className="variant-summary">Classic simultaneous chess</span>
+                </button>
+                <button
+                  type="button"
+                  className={`variant-toggle-btn ${selectedVariant === 'skirmish' ? 'active' : ''}`}
+                  onClick={() => setSelectedVariant('skirmish')}
+                >
+                  <span className="variant-name">Skirmish (6x6)</span>
+                  <span className="variant-summary">Compact board • Queen replaced by Knight</span>
+                </button>
+              </div>
             </div>
 
             {/* Game Modes Grid */}

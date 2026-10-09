@@ -14,18 +14,24 @@ export default function NativeChessboard({
   isLocked = false,
   disabled = false,
   lastEvents = [],
-  lastMoves = null
+  lastMoves = null,
+  variant = 'standard'
 }) {
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [draggedSquare, setDraggedSquare] = useState(null);
   const [animatedMoves, setAnimatedMoves] = useState([]);
+  const [pendingPromotion, setPendingPromotion] = useState(null);
 
   // Store the last turn number that was animated to prevent re-running animations
   const lastTurnAnimatedRef = useRef(lastMoves?.turn || 0);
 
+  const boardSize = variant === 'skirmish' ? 6 : 8;
+  const activeFiles = useMemo(() => FILES.slice(0, boardSize), [boardSize]);
+  const activeRanks = useMemo(() => RANKS.slice(0, boardSize), [boardSize]);
+
   const isWhiteOrientation = orientation === 'white';
-  const displayRanks = isWhiteOrientation ? [...RANKS].reverse() : [...RANKS];
-  const displayFiles = isWhiteOrientation ? [...FILES] : [...FILES].reverse();
+  const displayRanks = isWhiteOrientation ? [...activeRanks].reverse() : [...activeRanks];
+  const displayFiles = isWhiteOrientation ? [...activeFiles] : [...activeFiles].reverse();
 
   // Active square is either dragged or selected
   const activeSquare = draggedSquare || selectedSquare;
@@ -63,16 +69,16 @@ export default function NativeChessboard({
     return new Set(lastMoves.moves.map(m => m.to));
   }, [lastMoves]);
 
-  // Filter legal destination moves from the active square
-  const activeDestinations = useMemo(() => {
-    if (!activeSquare) return new Map();
-    const map = new Map();
+  // Set of legal target squares from activeSquare
+  const legalTargetSquares = useMemo(() => {
+    if (!activeSquare) return new Set();
+    const set = new Set();
     legalMoves.forEach(m => {
       if (m.from === activeSquare) {
-        map.set(m.to, m);
+        set.add(m.to);
       }
     });
-    return map;
+    return set;
   }, [activeSquare, legalMoves]);
 
   // Collision squares from last turn to show highlights
@@ -87,15 +93,37 @@ export default function NativeChessboard({
     return set;
   }, [lastEvents]);
 
+  // Stage or trigger promotion dialog for a move from -> to
+  function attemptMove(fromSquare, targetSquare) {
+    const matchingMoves = legalMoves.filter(m => m.from === fromSquare && m.to === targetSquare);
+    if (matchingMoves.length === 0) return;
+
+    const promoMoves = matchingMoves.filter(m => Boolean(m.promotion));
+    if (promoMoves.length > 0) {
+      setPendingPromotion({
+        from: fromSquare,
+        to: targetSquare,
+        color: playerColor,
+        moves: promoMoves,
+        piece: matchingMoves[0].piece
+      });
+      setSelectedSquare(null);
+      setDraggedSquare(null);
+      return;
+    }
+
+    onStageMove(matchingMoves[0]);
+    setSelectedSquare(null);
+    setDraggedSquare(null);
+  }
+
   // Handle clicking on a square
   function handleSquareClick(square) {
     if (disabled || isLocked || playerColor === 'spectator') return;
 
     // 1. If we already have an active piece selected and click a valid destination:
-    if (activeSquare && activeDestinations.has(square)) {
-      const move = activeDestinations.get(square);
-      onStageMove(move);
-      setSelectedSquare(null);
+    if (activeSquare && legalTargetSquares.has(square)) {
+      attemptMove(activeSquare, square);
       return;
     }
 
@@ -144,10 +172,8 @@ export default function NativeChessboard({
 
     if (!fromSquare || fromSquare === targetSquare) return;
 
-    const matchingMove = legalMoves.find(m => m.from === fromSquare && m.to === targetSquare);
-    if (matchingMove) {
-      onStageMove(matchingMove);
-      setSelectedSquare(null);
+    if (legalTargetSquares.has(targetSquare)) {
+      attemptMove(fromSquare, targetSquare);
     }
   }
 
@@ -176,8 +202,14 @@ export default function NativeChessboard({
   }
 
   return (
-    <div className="native-chessboard-wrapper">
-      <div className="native-chessboard-grid">
+    <div className={`native-chessboard-wrapper ${variant === 'skirmish' ? 'variant-skirmish' : ''}`}>
+      <div 
+        className="native-chessboard-grid"
+        style={{
+          gridTemplateColumns: `repeat(${boardSize}, 1fr)`,
+          gridTemplateRows: `repeat(${boardSize}, 1fr)`
+        }}
+      >
         {displayRanks.map((rank, rankIndex) =>
           displayFiles.map((file, fileIndex) => {
             const square = `${file}${rank}`;
@@ -201,7 +233,7 @@ export default function NativeChessboard({
             }
 
             const isSelected = selectedSquare === square;
-            const isLegalTarget = activeDestinations.has(square);
+            const isLegalTarget = legalTargetSquares.has(square);
             const isTargetEnemy = isLegalTarget && originalPiece && originalPiece.color !== playerColor;
             const isTargetDefend = isLegalTarget && originalPiece && originalPiece.color === playerColor;
             const hasCollision = collisionSquares.has(square);
@@ -233,7 +265,7 @@ export default function NativeChessboard({
                 {fileIndex === 0 && (
                   <span className="coord-rank">{rank}</span>
                 )}
-                {rankIndex === 7 && (
+                {rankIndex === (boardSize - 1) && (
                   <span className="coord-file">{file}</span>
                 )}
 
@@ -293,6 +325,55 @@ export default function NativeChessboard({
           })
         )}
       </div>
+
+      {/* Interactive Pawn Promotion Selector Modal */}
+      {pendingPromotion && (
+        <div 
+          className="promotion-overlay" 
+          onClick={() => setPendingPromotion(null)}
+        >
+          <div 
+            className="promotion-dialog" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="promotion-title">Promote Pawn</div>
+            <div className="promotion-subtitle">
+              Pawn to {pendingPromotion.to.toUpperCase()}
+            </div>
+            <div className="promotion-pieces-grid">
+              {['q', 'r', 'b', 'n'].map((type) => {
+                const promoMove = pendingPromotion.moves.find(m => m.promotion === type);
+                if (!promoMove) return null;
+                const pieceName = type === 'q' ? 'Queen' : type === 'r' ? 'Rook' : type === 'b' ? 'Bishop' : 'Knight';
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    className="promotion-piece-card"
+                    onClick={() => {
+                      onStageMove(promoMove);
+                      setPendingPromotion(null);
+                    }}
+                    title={`Promote to ${pieceName}`}
+                  >
+                    <div className="promotion-piece-preview">
+                      <ChessPiece type={type} color={pendingPromotion.color} />
+                    </div>
+                    <span className="promotion-piece-label">{pieceName}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button 
+              type="button"
+              className="btn btn-secondary btn-sm promotion-cancel-btn" 
+              onClick={() => setPendingPromotion(null)}
+            >
+              Cancel Move
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

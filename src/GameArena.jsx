@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   Swords, 
   Copy, 
@@ -15,7 +15,8 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  Loader2
+  Loader2,
+  Clock
 } from 'lucide-react';
 import HowToPlayModal from './HowToPlayModal';
 import { ref, update } from 'firebase/database';
@@ -29,6 +30,7 @@ import {
   pieceName 
 } from './gameLogic';
 import { recordMatchOutcome, calculateEloDelta } from './eloService';
+import { sounds } from './soundEffects';
 
 const EMOJIS = ['👏', '😮', '💀', '🔥', '🤔', '🤝'];
 
@@ -49,6 +51,8 @@ export default function GameArena(props) {
   const [reactionCooldown, setReactionCooldown] = useState(0);
   const [activeReaction, setActiveReaction] = useState(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const lastWarnedSecRef = useRef(null);
 
   // Elo post-game calculation record
   const [eloResult, setEloResult] = useState(null);
@@ -106,7 +110,8 @@ export default function GameArena(props) {
       gameState.board || {},
       myColor,
       gameState.castlingRights,
-      gameState.enPassantTarget
+      gameState.enPassantTarget,
+      gameState.variant || 'standard'
     );
   }, [
     gameState,
@@ -114,6 +119,91 @@ export default function GameArena(props) {
     myStatus, 
     myColor
   ]);
+
+  // Pokémon Showdown Timer Real-Time Ticking
+  const timerData = gameState?.timer;
+  const isTimerActive = Boolean(timerData?.enabled && gameState?.status === 'playing');
+
+  useEffect(() => {
+    if (!isTimerActive) return;
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 500);
+    return () => clearInterval(interval);
+  }, [isTimerActive]);
+
+  const turnElapsed = isTimerActive && timerData?.turnStartedAt
+    ? Math.max(0, Math.floor((now - timerData.turnStartedAt) / 1000))
+    : 0;
+
+  const wBank = Math.max(0, (timerData?.banks?.w ?? 150) - (gameState?.submitted?.w ? 0 : turnElapsed));
+  const bBank = Math.max(0, (timerData?.banks?.b ?? 150) - (gameState?.submitted?.b ? 0 : turnElapsed));
+  const turnLimit = timerData?.turnLimit ?? 60;
+  const turnRemaining = Math.max(0, turnLimit - turnElapsed);
+
+  const wEffective = Math.min(wBank, turnRemaining);
+  const bEffective = Math.min(bBank, turnRemaining);
+
+  const myEffective = myColor === 'w' ? wEffective : bEffective;
+  const enemyEffective = myColor === 'w' ? bEffective : wEffective;
+  const myBank = myColor === 'w' ? wBank : bBank;
+  const enemyBank = myColor === 'w' ? bBank : wBank;
+
+  // 10-Second Pokémon Showdown Warning Alert & Chime
+  useEffect(() => {
+    if (!isTimerActive || myStatus || isSpectator) return;
+    if (myEffective <= 10 && myEffective > 0) {
+      if (lastWarnedSecRef.current !== myEffective) {
+        lastWarnedSecRef.current = myEffective;
+        if (myEffective === 10) {
+          sounds.playWarningChime();
+        } else {
+          sounds.playTick();
+        }
+      }
+    }
+  }, [isTimerActive, myStatus, isSpectator, myEffective]);
+
+  // Timeout Forfeit Evaluation
+  useEffect(() => {
+    if (!isTimerActive || !roomId) return;
+    const isPrimaryResolver = myColor === 'w' || (myColor === 'b' && !gameState?.players?.w);
+    if (!isPrimaryResolver) return;
+
+    if (wEffective <= 0 && !gameState?.submitted?.w) {
+      sounds.playTimeoutBuzzer();
+      update(ref(db, `games/${roomId}`), {
+        status: 'b_won',
+        finishReason: 'timeout',
+        forfeitedColor: 'w'
+      });
+    } else if (bEffective <= 0 && !gameState?.submitted?.b) {
+      sounds.playTimeoutBuzzer();
+      update(ref(db, `games/${roomId}`), {
+        status: 'w_won',
+        finishReason: 'timeout',
+        forfeitedColor: 'b'
+      });
+    }
+  }, [isTimerActive, wEffective, bEffective, gameState?.submitted, myColor, roomId, gameState?.players]);
+
+  // Toggle Timer On/Off
+  async function handleToggleTimer() {
+    if (!roomId || isSpectator) return;
+    const currentEnabled = Boolean(gameState?.timer?.enabled);
+    if (currentEnabled) {
+      await update(ref(db, `games/${roomId}/timer`), {
+        enabled: false
+      });
+    } else {
+      await update(ref(db, `games/${roomId}/timer`), {
+        enabled: true,
+        turnLimit: 60,
+        banks: { w: 150, b: 150 },
+        turnStartedAt: Date.now()
+      });
+    }
+  }
 
   // Master turn resolution when both moves are submitted
   useEffect(() => {
@@ -165,6 +255,23 @@ export default function GameArena(props) {
         ]
       };
 
+      const currentTimer = gameState?.timer;
+      let nextTimer = null;
+      if (currentTimer?.enabled) {
+        const turnDur = currentTimer.turnStartedAt
+          ? Math.max(0, Math.floor((Date.now() - currentTimer.turnStartedAt) / 1000))
+          : 0;
+        nextTimer = {
+          enabled: true,
+          turnLimit: currentTimer.turnLimit || 60,
+          banks: {
+            w: Math.max(0, (currentTimer.banks?.w ?? 150) - turnDur),
+            b: Math.max(0, (currentTimer.banks?.b ?? 150) - turnDur)
+          },
+          turnStartedAt: Date.now()
+        };
+      }
+
       const timer = setTimeout(() => {
         update(ref(db, `games/${roomId}`), {
           board: turnResult.newBoard,
@@ -177,7 +284,8 @@ export default function GameArena(props) {
           capturedPieces: mergedCaptured,
           lastEvents: turnResult.events || [],
           lastMoves: lastMovesRecord,
-          history: [...(gameState.history || []), newHistoryEntry]
+          history: [...(gameState.history || []), newHistoryEntry],
+          ...(nextTimer ? { timer: nextTimer } : {})
         });
       }, 350);
 
@@ -245,6 +353,7 @@ export default function GameArena(props) {
   // Immediately lock in move on piece placement
   async function handleMovePiece(move) {
     if (!gameState || myStatus || gameState.status !== 'playing' || !roomId || isSpectator) return;
+    sounds.playLockIn();
     setStagedInfo({ turn: gameState.turnCount || 1, move });
     await update(ref(db, `games/${roomId}`), {
       [`pendingMoves/${myColor}`]: move,
@@ -414,6 +523,16 @@ export default function GameArena(props) {
         </div>
 
         <div className="header-right">
+          {/* Pokémon Showdown Timer Button */}
+          <button 
+            className={`btn-timer-showdown ${isTimerActive ? 'timer-active' : ''}`}
+            onClick={handleToggleTimer}
+            title={isTimerActive ? 'Click to stop timer' : 'Start Pokémon Showdown timer'}
+          >
+            <Clock size={15} />
+            <span>{isTimerActive ? `Timer ON (${myEffective}s)` : 'Timer'}</span>
+          </button>
+
           <button className="room-code-badge" onClick={handleCopyCode} title="Click to copy room code">
             <span className="code-label">Room:</span>
             <span className="code-text">{roomId}</span>
@@ -471,6 +590,13 @@ export default function GameArena(props) {
                       {opponentElo}
                     </span>
                   )}
+                  {isTimerActive && (
+                    <div className={`player-timer-box ${enemyEffective <= 10 && !enemyStatus ? 'timer-danger' : ''}`}>
+                      <Clock size={12} />
+                      <span className="timer-val-main">{enemyEffective}s</span>
+                      <span className="timer-val-sub">({enemyBank}s bank)</span>
+                    </div>
+                  )}
                 </div>
                 <span className="player-status-text">
                   {isWaiting ? (
@@ -498,6 +624,14 @@ export default function GameArena(props) {
             </div>
           </div>
 
+          {/* 10-Second Pokémon Showdown Warning Alert Banner */}
+          {myEffective <= 10 && isTimerActive && !myStatus && !isSpectator && (
+            <div className="showdown-timer-warning-banner">
+              <AlertTriangle size={15} />
+              <span>You have {myEffective} second{myEffective === 1 ? '' : 's'} to make your decision!</span>
+            </div>
+          )}
+
           {/* Interactive Chessboard */}
           <div className="chessboard-center-stage">
             <NativeChessboard
@@ -511,6 +645,7 @@ export default function GameArena(props) {
               disabled={gameState.status !== 'playing'}
               lastEvents={gameState.lastEvents || []}
               lastMoves={gameState.lastMoves || null}
+              variant={gameState.variant || 'standard'}
             />
           </div>
 
@@ -537,6 +672,13 @@ export default function GameArena(props) {
                     <span className="player-elo-badge">
                       {myElo}
                     </span>
+                  )}
+                  {!isSpectator && isTimerActive && (
+                    <div className={`player-timer-box ${myEffective <= 10 && !myStatus ? 'timer-danger' : ''}`}>
+                      <Clock size={12} />
+                      <span className="timer-val-main">{myEffective}s</span>
+                      <span className="timer-val-sub">({myBank}s bank)</span>
+                    </div>
                   )}
                 </div>
                 <span className="player-status-text">
@@ -715,7 +857,9 @@ export default function GameArena(props) {
             </h2>
 
             <p className="modal-subtitle">
-              {gameState.status === 'draw'
+              {gameState.finishReason === 'timeout'
+                ? `${gameState.forfeitedColor === 'w' ? (whiteMeta?.username || 'White') : (blackMeta?.username || 'Black')} forfeited due to timeout.`
+                : gameState.status === 'draw'
                 ? 'Both Kings fell simultaneously in battle or mutual annihilation occurred!'
                 : gameState.status === 'w_won'
                 ? 'White captured Black\'s King!'

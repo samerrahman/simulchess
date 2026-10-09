@@ -4736,3 +4736,326 @@ body {
   }
 }
 
+/* ==========================================================================
+   PAWN PROMOTION SELECTOR MODAL
+   ========================================================================== */
+.promotion-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.15s ease;
+  padding: 1rem;
+}
+
+.promotion-dialog {
+  background: var(--bg-panel);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 360px;
+  width: 100%;
+}
+
+.promotion-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.promotion-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: -0.6rem;
+}
+
+.promotion-pieces-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.promotion-piece-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 0.4rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.promotion-piece-card:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+}
+
+.promotion-piece-preview {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.promotion-piece-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.promotion-cancel-btn {
+  margin-top: 0.25rem;
+}
+
+/* ==========================================================================
+   POKÉMON SHOWDOWN TIMER & ALERT BANNER
+   ========================================================================== */
+.btn-timer-showdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-timer-showdown:hover {
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+}
+
+.btn-timer-showdown.timer-active {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.player-timer-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.timer-val-main {
+  color: var(--text-primary);
+}
+
+.timer-val-sub {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.player-timer-box.timer-danger {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: #ef4444;
+  color: #ef4444;
+  animation: timerPulse 1s infinite alternate;
+}
+
+.player-timer-box.timer-danger .timer-val-main {
+  color: #ef4444;
+}
+
+@keyframes timerPulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.04); }
+}
+
+.showdown-timer-warning-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1.5px solid #f59e0b;
+  color: #fbbf24;
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.75rem;
+  animation: warningPulse 1.2s infinite ease-in-out;
+}
+
+@keyframes warningPulse {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.85; transform: translateY(-1px); }
+}
+
+/* ==========================================================================
+   GAME VARIANT SELECTOR (LOBBY) & 6x6 SKIRMISH
+   ========================================================================== */
+.variant-selection-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.variant-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.variant-title-label {
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.variant-active-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-blue);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.variant-buttons-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.variant-toggle-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.variant-toggle-btn:hover {
+  border-color: var(--accent-blue);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.variant-toggle-btn.active {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue);
+}
+
+.variant-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.variant-summary {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.25;
+}
+
+.native-chessboard-wrapper.variant-skirmish {
+  max-width: 520px;
+}
+
+/* ==========================================================================
+   HAND-CODED RETRO SHOWDOWN UI STYLE ([data-ui-style="handcrafted"])
+   ========================================================================== */
+[data-ui-style="handcrafted"] {
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+[data-ui-style="handcrafted"] .site-navbar {
+  border-bottom: 2px solid var(--border);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+
+[data-ui-style="handcrafted"] .btn-primary,
+[data-ui-style="handcrafted"] .btn-secondary,
+[data-ui-style="handcrafted"] .variant-toggle-btn,
+[data-ui-style="handcrafted"] .mode-card,
+[data-ui-style="handcrafted"] .stat-card,
+[data-ui-style="handcrafted"] .player-strip,
+[data-ui-style="handcrafted"] .history-card,
+[data-ui-style="handcrafted"] .action-control-card {
+  border-width: 1.5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+[data-ui-style="handcrafted"] .btn-primary {
+  background: #3b82f6;
+  border-color: #1d4ed8;
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+[data-ui-style="handcrafted"] .btn-primary:hover {
+  background: #2563eb;
+  border-color: #1e40af;
+}
+
+[data-ui-style="handcrafted"] .btn-secondary {
+  border-color: var(--border);
+  font-weight: 700;
+}
+
+[data-ui-style="handcrafted"] .native-chessboard-grid {
+  border: 2px solid #222;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+[data-ui-style="handcrafted"] .coord-rank,
+[data-ui-style="handcrafted"] .coord-file {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 800;
+}
+
+[data-ui-style="handcrafted"] .hero-headline {
+  letter-spacing: -0.03em;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+

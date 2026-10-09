@@ -1,5 +1,34 @@
 // Helper constants
-const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+export const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+export const VARIANTS = {
+  standard: {
+    id: 'standard',
+    name: 'Standard (8x8)',
+    description: 'Traditional 8x8 simultaneous chess army.',
+    boardSize: 8,
+    files: 8,
+    ranks: 8,
+    pawnStartWhite: 1, // 0-indexed: rank 2
+    pawnStartBlack: 6, // 0-indexed: rank 7
+    promoRankWhite: 7, // 0-indexed: rank 8
+    promoRankBlack: 0, // 0-indexed: rank 1
+    hasCastling: true
+  },
+  skirmish: {
+    id: 'skirmish',
+    name: 'Skirmish (6x6)',
+    description: '6x6 compact board. Flank knights removed, Queen replaced by a Knight.',
+    boardSize: 6,
+    files: 6,
+    ranks: 6,
+    pawnStartWhite: 1, // 0-indexed: rank 2
+    pawnStartBlack: 4, // 0-indexed: rank 5
+    promoRankWhite: 5, // 0-indexed: rank 6
+    promoRankBlack: 0, // 0-indexed: rank 1
+    hasCastling: false
+  }
+};
 
 export function sqToFileRank(sq) {
   if (!sq || sq.length < 2) return [-1, -1];
@@ -8,15 +37,33 @@ export function sqToFileRank(sq) {
   return [file, rank];
 }
 
-export function toSq(file, rank) {
-  if (file < 0 || file > 7 || rank < 0 || rank > 7) return null;
+export function toSq(file, rank, maxFiles = 8, maxRanks = 8) {
+  if (file < 0 || file >= maxFiles || rank < 0 || rank >= maxRanks) return null;
   return `${FILES[file]}${rank + 1}`;
 }
 
-export function createInitialBoard() {
+export function createInitialBoard(variant = 'standard') {
   const board = {};
 
-  // Pawns
+  if (variant === 'skirmish') {
+    // 6x6 Skirmish: ranks 1-6, files a-f
+    // Pawns on Rank 2 (w) and Rank 5 (b)
+    for (let f = 0; f < 6; f++) {
+      board[`${FILES[f]}2`] = { type: 'p', color: 'w' };
+      board[`${FILES[f]}5`] = { type: 'p', color: 'b' };
+    }
+
+    // Pieces: Flank knights removed, Queen replaced with Knight
+    // Back rank: Rook, Bishop, Knight, King, Bishop, Rook
+    const backRank = ['r', 'b', 'n', 'k', 'b', 'r'];
+    for (let f = 0; f < 6; f++) {
+      board[`${FILES[f]}1`] = { type: backRank[f], color: 'w' };
+      board[`${FILES[f]}6`] = { type: backRank[f], color: 'b' };
+    }
+    return board;
+  }
+
+  // Standard 8x8
   for (let f = 0; f < 8; f++) {
     board[toSq(f, 1)] = { type: 'p', color: 'w' };
     board[toSq(f, 6)] = { type: 'p', color: 'b' };
@@ -32,13 +79,14 @@ export function createInitialBoard() {
   return board;
 }
 
-export function createInitialGameState() {
+export function createInitialGameState(variant = 'standard') {
+  const isSkirmish = variant === 'skirmish';
   return {
-    board: createInitialBoard(),
-    castlingRights: {
-      w: { k: true, q: true },
-      b: { k: true, q: true }
-    },
+    variant: variant || 'standard',
+    board: createInitialBoard(variant),
+    castlingRights: isSkirmish
+      ? { w: { k: false, q: false }, b: { k: false, q: false } }
+      : { w: { k: true, q: true }, b: { k: true, q: true } },
     enPassantTarget: null,
     turnCount: 1,
     history: [],
@@ -47,31 +95,44 @@ export function createInitialGameState() {
     pendingMoves: { w: null, b: null },
     submitted: { w: false, b: false },
     capturedPieces: { w: [], b: [] },
-    lastEvents: []
+    lastEvents: [],
+    timer: {
+      enabled: false,
+      turnLimit: 60,
+      banks: { w: 150, b: 150 },
+      turnStartedAt: null,
+      lastTickAt: null
+    }
   };
 }
 
-export function getLegalMoves(board, color, castlingRights = null, enPassantTarget = null) {
+export function getLegalMoves(board, color, castlingRights = null, enPassantTarget = null, variant = 'standard') {
   if (!board || !color) return [];
+
+  const varConfig = VARIANTS[variant] || VARIANTS.standard;
+  const maxFiles = varConfig.files;
+  const maxRanks = varConfig.ranks;
 
   const moves = [];
   const friendlyColor = color;
   const enemyColor = color === 'w' ? 'b' : 'w';
   const pawnDirection = color === 'w' ? 1 : -1;
-  const startPawnRank = color === 'w' ? 1 : 6;
-  const promoRank = color === 'w' ? 7 : 0;
+  const startPawnRank = color === 'w' ? varConfig.pawnStartWhite : varConfig.pawnStartBlack;
+  const promoRank = color === 'w' ? varConfig.promoRankWhite : varConfig.promoRankBlack;
+
+  const getSq = (fIdx, rIdx) => toSq(fIdx, rIdx, maxFiles, maxRanks);
 
   for (const sq in board) {
     const piece = board[sq];
     if (!piece || piece.color !== friendlyColor) continue;
 
     const [f, r] = sqToFileRank(sq);
-    if (f === -1 || r === -1) continue;
+    if (f === -1 || r === -1 || f >= maxFiles || r >= maxRanks) continue;
 
     switch (piece.type) {
       case 'p': {
         // 1 step forward
-        const fwd1Sq = toSq(f, r + pawnDirection);
+        const fwd1Sq = getSq(f, r + pawnDirection);
         if (fwd1Sq && !board[fwd1Sq]) {
           if (r + pawnDirection === promoRank) {
             ['q', 'r', 'b', 'n'].forEach(pr => {
@@ -81,7 +142,7 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
             moves.push({ from: sq, to: fwd1Sq, piece, san: fwd1Sq });
             // 2 steps forward from initial rank
             if (r === startPawnRank) {
-              const fwd2Sq = toSq(f, r + 2 * pawnDirection);
+              const fwd2Sq = getSq(f, r + 2 * pawnDirection);
               if (fwd2Sq && !board[fwd2Sq]) {
                 moves.push({ from: sq, to: fwd2Sq, piece, isTwoSquarePawn: true, san: fwd2Sq });
               }
@@ -100,7 +161,7 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
 
         // Diagonal captures and friendly defense
         for (const df of [-1, 1]) {
-          const capSq = toSq(f + df, r + pawnDirection);
+          const capSq = getSq(f + df, r + pawnDirection);
           if (!capSq) continue;
 
           const targetPiece = board[capSq];
@@ -161,7 +222,7 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
           [1, -2], [1, 2], [2, -1], [2, 1]
         ];
         for (const [df, dr] of knightDeltas) {
-          const targetSq = toSq(f + df, r + dr);
+          const targetSq = getSq(f + df, r + dr);
           if (!targetSq) continue;
           const targetPiece = board[targetSq];
           if (!targetPiece) {
@@ -180,7 +241,7 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
         for (const [df, dr] of bishopDirections) {
           let step = 1;
           while (true) {
-            const targetSq = toSq(f + step * df, r + step * dr);
+            const targetSq = getSq(f + step * df, r + step * dr);
             if (!targetSq) break;
             const targetPiece = board[targetSq];
             if (!targetPiece) {
@@ -204,7 +265,7 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
         for (const [df, dr] of rookDirections) {
           let step = 1;
           while (true) {
-            const targetSq = toSq(f + step * df, r + step * dr);
+            const targetSq = getSq(f + step * df, r + step * dr);
             if (!targetSq) break;
             const targetPiece = board[targetSq];
             if (!targetPiece) {
@@ -231,7 +292,7 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
         for (const [df, dr] of queenDirections) {
           let step = 1;
           while (true) {
-            const targetSq = toSq(f + step * df, r + step * dr);
+            const targetSq = getSq(f + step * df, r + step * dr);
             if (!targetSq) break;
             const targetPiece = board[targetSq];
             if (!targetPiece) {
@@ -256,7 +317,7 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
           [1, 1], [1, -1], [-1, 1], [-1, -1]
         ];
         for (const [df, dr] of kingDirections) {
-          const targetSq = toSq(f + df, r + dr);
+          const targetSq = getSq(f + df, r + dr);
           if (!targetSq) continue;
           const targetPiece = board[targetSq];
           if (!targetPiece) {
@@ -268,49 +329,51 @@ export function getLegalMoves(board, color, castlingRights = null, enPassantTarg
           }
         }
 
-        // Castling
-        const colorRights = castlingRights ? castlingRights[color] : { k: true, q: true };
-        const kingRank = color === 'w' ? 0 : 7;
-        const kingStartSq = color === 'w' ? 'e1' : 'e8';
+        // Castling (only on boards that support castling like 8x8)
+        if (varConfig.hasCastling) {
+          const colorRights = castlingRights ? castlingRights[color] : { k: true, q: true };
+          const kingRank = color === 'w' ? 0 : 7;
+          const kingStartSq = color === 'w' ? 'e1' : 'e8';
 
-        if (sq === kingStartSq && colorRights) {
-          // Kingside: e1 -> g1 (squares f1, g1 empty, rook on h1)
-          if (colorRights.k) {
-            const fSq = toSq(5, kingRank);
-            const gSq = toSq(6, kingRank);
-            const hSq = toSq(7, kingRank);
-            const rook = board[hSq];
-            if (rook && rook.type === 'r' && rook.color === color && !board[fSq] && !board[gSq]) {
-              moves.push({
-                from: sq,
-                to: gSq,
-                piece,
-                isCastling: true,
-                castlingSide: 'k',
-                rookFrom: hSq,
-                rookTo: fSq,
-                san: 'O-O'
-              });
+          if (sq === kingStartSq && colorRights) {
+            // Kingside: e1 -> g1 (squares f1, g1 empty, rook on h1)
+            if (colorRights.k) {
+              const fSq = getSq(5, kingRank);
+              const gSq = getSq(6, kingRank);
+              const hSq = getSq(7, kingRank);
+              const rook = board[hSq];
+              if (rook && rook.type === 'r' && rook.color === color && !board[fSq] && !board[gSq]) {
+                moves.push({
+                  from: sq,
+                  to: gSq,
+                  piece,
+                  isCastling: true,
+                  castlingSide: 'k',
+                  rookFrom: hSq,
+                  rookTo: fSq,
+                  san: 'O-O'
+                });
+              }
             }
-          }
-          // Queenside: e1 -> c1 (squares b1, c1, d1 empty, rook on a1)
-          if (colorRights.q) {
-            const bSq = toSq(1, kingRank);
-            const cSq = toSq(2, kingRank);
-            const dSq = toSq(3, kingRank);
-            const aSq = toSq(0, kingRank);
-            const rook = board[aSq];
-            if (rook && rook.type === 'r' && rook.color === color && !board[bSq] && !board[cSq] && !board[dSq]) {
-              moves.push({
-                from: sq,
-                to: cSq,
-                piece,
-                isCastling: true,
-                castlingSide: 'q',
-                rookFrom: aSq,
-                rookTo: dSq,
-                san: 'O-O-O'
-              });
+            // Queenside: e1 -> c1 (squares b1, c1, d1 empty, rook on a1)
+            if (colorRights.q) {
+              const bSq = getSq(1, kingRank);
+              const cSq = getSq(2, kingRank);
+              const dSq = getSq(3, kingRank);
+              const aSq = getSq(0, kingRank);
+              const rook = board[aSq];
+              if (rook && rook.type === 'r' && rook.color === color && !board[bSq] && !board[cSq] && !board[dSq]) {
+                moves.push({
+                  from: sq,
+                  to: cSq,
+                  piece,
+                  isCastling: true,
+                  castlingSide: 'q',
+                  rookFrom: aSq,
+                  rookTo: dSq,
+                  san: 'O-O-O'
+                });
+              }
             }
           }
         }
@@ -595,10 +658,14 @@ export function resolveTurn(board, m1, m2, currentCastlingRights = null, current
   let newEnPassantTarget = null;
   if (whiteMove?.isTwoSquarePawn || (whitePieceObj?.type === 'p' && whiteFrom && whiteTo && Math.abs(parseInt(whiteTo[1], 10) - parseInt(whiteFrom[1], 10)) === 2)) {
     const f = sqToFileRank(whiteFrom)[0];
-    newEnPassantTarget = toSq(f, 2);
+    const r1 = parseInt(whiteFrom[1], 10) - 1;
+    const r2 = parseInt(whiteTo[1], 10) - 1;
+    newEnPassantTarget = toSq(f, Math.round((r1 + r2) / 2));
   } else if (blackMove?.isTwoSquarePawn || (blackPieceObj?.type === 'p' && blackFrom && blackTo && Math.abs(parseInt(blackTo[1], 10) - parseInt(blackFrom[1], 10)) === 2)) {
     const f = sqToFileRank(blackFrom)[0];
-    newEnPassantTarget = toSq(f, 5);
+    const r1 = parseInt(blackFrom[1], 10) - 1;
+    const r2 = parseInt(blackTo[1], 10) - 1;
+    newEnPassantTarget = toSq(f, Math.round((r1 + r2) / 2));
   }
 
   // Winner evaluation
