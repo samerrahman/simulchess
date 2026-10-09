@@ -872,9 +872,9 @@ export default function App() {
           <button 
             className="btn btn-secondary btn-xs ui-style-toggle-btn"
             onClick={() => setUiStyle(s => s === 'handcrafted' ? 'modern' : 'handcrafted')}
-            title="Toggle between Hand-coded Showdown style and Modern look"
+            title={uiStyle === 'handcrafted' ? 'Active: Hand-crafted style. Click to switch to Modern.' : 'Active: Modern style. Click to switch to Hand-crafted.'}
           >
-            {uiStyle === 'handcrafted' ? 'Retro Style' : 'Modern Style'}
+            {uiStyle === 'handcrafted' ? '🎨 Hand-crafted' : '✨ Modern Look'}
           </button>
 
           <button 
