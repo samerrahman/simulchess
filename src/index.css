@@ -7,38 +7,41 @@
   --radius-xl: 6px;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  --bg-dark: #0b0f19;
-  --bg-panel: #131b2e;
-  --bg-card: #1c263f;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --bg-dark: #161512;
+  --bg-panel: #262421;
+  --bg-card: #302d28;
+  --text-primary: #bababa;
+  --text-bright: #ffffff;
+  --text-secondary: #8c8881;
+  --text-muted: #6b665f;
   
-  --accent-blue: #2563eb;
-  --accent-blue-hover: #1d4ed8;
-  --accent-green: #10b981;
-  --accent-green-hover: #059669;
-  --accent-amber: #f59e0b;
-  --accent-red: #ef4444;
+  --accent-blue: #3692e7;
+  --accent-blue-hover: #48a0f2;
+  --accent-orange: #df6a15;
+  --accent-green: #629924;
+  --accent-green-hover: #75b32e;
+  --accent-amber: #e58f2a;
+  --accent-red: #cc3333;
   
-  --board-light: #8f9bb3;
-  --board-dark: #2e384d;
-  --board-highlight-selected: #baca44;
-  --board-highlight-staged: #f6f669;
-  --board-border: #1a2236;
+  --board-light: #dee3e6;
+  --board-dark: #8ca2ad;
+  --board-highlight-selected: #cdd26a;
+  --board-highlight-staged: #aaa23a;
+  --board-border: #262421;
 
-  --border: #23304e;
-  --border-light: #334469;
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.25);
+  --border: #36332e;
+  --border-light: #44403a;
+  --border-subtle: #2b2824;
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3);
 
-  --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  --nav-bg: rgba(19, 27, 46, 0.85);
-  --btn-secondary-bg: #1e293b;
-  --btn-secondary-hover-bg: #334155;
-  --btn-secondary-text: #f8fafc;
-  --input-bg: #1e293b;
+  --nav-bg: #161512;
+  --btn-secondary-bg: #2b2824;
+  --btn-secondary-hover-bg: #36332e;
+  --btn-secondary-text: #bababa;
+  --input-bg: #1e1d1a;
   
   --piece-w-fill: #ffffff;
   --piece-w-stroke: #1b1b1b;
@@ -5030,138 +5033,758 @@ body {
 }
 
 /* ==========================================================================
-   HAND-CODED AUTHENTIC UI STYLE ([data-ui-style="handcrafted"])
-   Main, default style across the site.
+   AUTHENTIC CHESS PLATFORM UI (LICHESS DESIGN SYSTEM)
+   Clean, dark charcoal (#161512), warm paneling (#262421), crisp borders (#36332e),
+   primary blue (#3692e7), and tab underline (#df6a15).
    ========================================================================== */
-[data-ui-style="handcrafted"] {
-  --radius-xs: 2px;
-  --radius-sm: 3px;
-  --radius-md: 4px;
-  --radius-lg: 5px;
-  --radius-xl: 6px;
+
+/* Navbar Styling */
+.site-navbar {
+  height: 48px;
+  min-height: 48px;
+  background: #161512;
+  border-bottom: 1px solid #2b2824;
+  padding: 0 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
-[data-ui-style="handcrafted"] .site-navbar {
-  border-bottom: 2px solid var(--border);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+.site-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
 }
 
-[data-ui-style="handcrafted"] .btn-primary,
-[data-ui-style="handcrafted"] .btn-secondary,
-[data-ui-style="handcrafted"] .variant-toggle-btn,
-[data-ui-style="handcrafted"] .mode-card,
-[data-ui-style="handcrafted"] .stat-card,
-[data-ui-style="handcrafted"] .player-strip,
-[data-ui-style="handcrafted"] .history-card,
-[data-ui-style="handcrafted"] .action-control-card {
-  border-width: 1.5px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+.site-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  text-decoration: none;
 }
 
-[data-ui-style="handcrafted"] .btn-primary {
-  background: #2563eb;
-  border-color: #1d4ed8;
-  color: #fff;
-  font-weight: 700;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+.brand-logo-icon {
+  width: 30px;
+  height: 30px;
+  background: #262421;
+  border: 1px solid #36332e;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-blue);
 }
 
-[data-ui-style="handcrafted"] .btn-primary:hover {
-  background: #1d4ed8;
-  border-color: #1e40af;
-}
-
-[data-ui-style="handcrafted"] .btn-secondary {
-  border-color: var(--border);
-  font-weight: 700;
-}
-
-[data-ui-style="handcrafted"] .native-chessboard-grid {
-  border: 2px solid #222;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-}
-
-[data-ui-style="handcrafted"] .coord-rank,
-[data-ui-style="handcrafted"] .coord-file {
-  font-family: var(--font-mono);
+.brand-title {
+  font-size: 1.1rem;
   font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
 }
 
-/* ==========================================================================
-   OPTIONAL MODERN SAAS UI STYLE ([data-ui-style="modern"])
-   Preserved for users who want to toggle back to the modern SaaS aesthetic.
-   ========================================================================== */
-[data-ui-style="modern"] {
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --accent-blue: #6366f1;
-  --accent-blue-hover: #4f46e5;
+.site-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
-[data-ui-style="modern"] .btn {
-  border-radius: 0.5rem;
+.nav-link-btn {
+  background: transparent;
   border: none;
-  box-shadow: none;
+  color: #8c8881;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0.75rem;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: color 0.12s, background 0.12s;
 }
 
-[data-ui-style="modern"] .btn-primary {
-  background-color: #6366f1;
+.nav-link-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
 }
 
-[data-ui-style="modern"] .btn-primary:hover:not(:disabled) {
-  background-color: #4f46e5;
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+.nav-link-btn.active {
+  color: #ffffff;
+  background: #262421;
 }
 
-[data-ui-style="modern"] .btn-secondary {
-  border: 1px solid var(--border-light);
+.site-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
 }
 
-[data-ui-style="modern"] .btn-lock-in {
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+.nav-auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-[data-ui-style="modern"] .site-navbar {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-  box-shadow: none;
-}
-
-[data-ui-style="modern"] .brand-logo-icon {
-  border-radius: 10px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+.nav-ghost-btn {
+  background: transparent;
   border: none;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  color: #bababa;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.12s;
 }
 
-[data-ui-style="modern"] .nav-badge-pill,
-[data-ui-style="modern"] .mode-badge-pill {
-  border-radius: 9999px;
-  font-family: inherit;
+.nav-ghost-btn:hover {
+  color: #ffffff;
 }
 
-[data-ui-style="modern"] .play-hero-section,
-[data-ui-style="modern"] .hero-cta-card,
-[data-ui-style="modern"] .mode-card,
-[data-ui-style="modern"] .stat-card,
-[data-ui-style="modern"] .player-strip,
-[data-ui-style="modern"] .history-card,
-[data-ui-style="modern"] .action-control-card {
-  border-radius: var(--radius-lg);
-  border-width: 1px;
+.btn-choose-name-top {
+  background: #3692e7;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.12s;
 }
 
-[data-ui-style="modern"] .mode-card-highlighted {
-  background: linear-gradient(180deg, rgba(99, 102, 241, 0.06), var(--bg-panel));
-  border-color: rgba(99, 102, 241, 0.35);
+.btn-choose-name-top:hover {
+  background: #2982d6;
 }
 
-[data-ui-style="modern"] .native-chessboard-wrapper {
-  border-radius: 0.65rem;
+.navbar-user-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #262421;
+  border: 1px solid #36332e;
+  border-radius: 3px;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: border-color 0.12s;
 }
+
+.navbar-user-pill:hover {
+  border-color: #48433d;
+}
+
+.nav-user-name {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.nav-user-elo {
+  font-weight: 600;
+  color: #df6a15;
+}
+
+/* Main Hub / Lichess 2-Column Split */
+.play-hub-container.lichess-container {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.lichess-lobby {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 860px) {
+  .lichess-lobby {
+    flex-direction: column;
+  }
+}
+
+/* Left Sidebar */
+.lichess-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+@media (max-width: 860px) {
+  .lichess-sidebar {
+    width: 100%;
+  }
+}
+
+.lichess-action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lichess-sidebar-btn {
+  background: #262421;
+  border: 1px solid #36332e;
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 1.02rem;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.lichess-sidebar-btn:hover {
+  background: #302d28;
+  border-color: #48433d;
+}
+
+.lichess-sidebar-btn:active {
+  transform: translateY(1px);
+}
+
+.lichess-btn-icon-wrap {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bababa;
+  flex-shrink: 0;
+}
+
+.lichess-sidebar-stats {
+  font-size: 0.88rem;
+  color: #8c8881;
+  padding: 0.25rem 0.25rem;
+  text-align: left;
+}
+
+.lichess-sidebar-stats .stat-highlight {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.lichess-sidebar-stats .stat-sep {
+  margin: 0 0.4rem;
+  color: #44403a;
+}
+
+.lichess-quick-join-box {
+  background: #262421;
+  border: 1px solid #36332e;
+  border-radius: 4px;
+  padding: 0.6rem 0.75rem;
+}
+
+.lichess-code-form {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.lichess-code-input {
+  flex: 1;
+  background: #161512;
+  border: 1px solid #36332e;
+  border-radius: 3px;
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  padding: 0.45rem 0.6rem;
+  letter-spacing: 0.08em;
+}
+
+.lichess-code-input:focus {
+  outline: none;
+  border-color: #3692e7;
+}
+
+.lichess-code-btn {
+  background: #3692e7;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  padding: 0 0.9rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.lichess-code-btn:hover:not(:disabled) {
+  background: #2982d6;
+}
+
+.lichess-code-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lichess-sidebar-footer {
+  font-size: 0.82rem;
+  color: #6b665f;
+  line-height: 1.45;
+  padding: 0.25rem 0.25rem;
+}
+
+.lichess-sidebar-footer p {
+  margin: 0;
+}
+
+/* Right Main Column */
+.lichess-main-col {
+  flex: 1;
+  min-width: 0;
+  background: #1e1d1a;
+  border: 1px solid #36332e;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lichess-tabs-nav {
+  display: flex;
+  background: #161512;
+  border-bottom: 1px solid #36332e;
+}
+
+.lichess-tab-nav-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #8c8881;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.85rem 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: color 0.12s;
+}
+
+.lichess-tab-nav-btn:hover {
+  color: #ffffff;
+}
+
+.lichess-tab-nav-btn.active {
+  color: #ffffff;
+  border-bottom-color: #df6a15;
+}
+
+.tab-count-badge {
+  font-size: 0.8rem;
+  color: #df6a15;
+}
+
+/* Tab 1: Quick Pairing Grid */
+.lichess-quick-wrapper {
+  padding: 1.25rem;
+  min-height: 310px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.lichess-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 600px) {
+  .lichess-quick-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.quick-tile {
+  background: #262421;
+  border: 1px solid #36332e;
+  border-radius: 4px;
+  padding: 1.35rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+
+.quick-tile:hover {
+  background: #302d28;
+  border-color: #48433d;
+}
+
+.quick-tile:active {
+  transform: scale(0.98);
+}
+
+.tile-primary-text {
+  font-size: 1.22rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.tile-sub-text {
+  font-size: 0.82rem;
+  color: #8c8881;
+  font-weight: 500;
+}
+
+/* Lichess Radar Matchmaking Overlay */
+.lichess-queue-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+
+.lichess-radar-spinner {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.radar-circle {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid #df6a15;
+  opacity: 0;
+  animation: radarPulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.radar-c1 {
+  width: 32px;
+  height: 32px;
+  animation-delay: 0s;
+}
+
+.radar-c2 {
+  width: 52px;
+  height: 52px;
+  animation-delay: 0.6s;
+}
+
+.radar-c3 {
+  width: 72px;
+  height: 72px;
+  animation-delay: 1.2s;
+}
+
+@keyframes radarPulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
+.radar-core-icon {
+  color: #df6a15;
+  z-index: 2;
+}
+
+.queue-headline {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.queue-detail {
+  font-size: 0.9rem;
+  color: #8c8881;
+  margin: 0 0 0.5rem;
+}
+
+.queue-timer-clock {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: #df6a15;
+  font-weight: 700;
+  margin: 0 0 1.25rem;
+}
+
+.btn-cancel-queue-lichess {
+  background: #262421;
+  border: 1px solid #36332e;
+  color: #bababa;
+  padding: 0.45rem 1.4rem;
+  border-radius: 3px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.btn-cancel-queue-lichess:hover {
+  background: #302d28;
+  color: #ffffff;
+}
+
+/* Tab 2: Lobby & Tab 3: Leaderboard Tables */
+.lichess-lobby-view,
+.lichess-leaderboard-view {
+  padding: 1rem;
+}
+
+.lobby-table-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.lobby-table-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.lobby-table-container {
+  overflow-x: auto;
+}
+
+.lichess-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.lichess-table th {
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  color: #8c8881;
+  border-bottom: 1px solid #36332e;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.lichess-table td {
+  padding: 0.65rem 0.65rem;
+  border-bottom: 1px solid #2b2824;
+  color: #bababa;
+}
+
+.lichess-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.badge-variant {
+  font-size: 0.78rem;
+  background: #262421;
+  border: 1px solid #36332e;
+  border-radius: 3px;
+  padding: 0.15rem 0.45rem;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.status-pill {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+}
+
+.status-waiting {
+  background: rgba(54, 146, 231, 0.15);
+  color: #3692e7;
+}
+
+.status-playing {
+  background: rgba(98, 153, 36, 0.15);
+  color: #629924;
+}
+
+.vs-sep {
+  color: #6b665f;
+  font-size: 0.82rem;
+}
+
+.lobby-empty-placeholder {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: #8c8881;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Create Game Modal */
+.lichess-create-modal {
+  max-width: 440px;
+  background: #262421;
+  border: 1px solid #36332e;
+  border-radius: 4px;
+}
+
+.create-section-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #8c8881;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.create-variant-row {
+  display: flex;
+  gap: 0.65rem;
+  margin-bottom: 1.25rem;
+}
+
+.create-variant-btn {
+  flex: 1;
+  background: #1e1d1a;
+  border: 1px solid #36332e;
+  border-radius: 4px;
+  padding: 0.75rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: #bababa;
+  transition: all 0.12s;
+}
+
+.create-variant-btn:hover {
+  border-color: #48433d;
+  color: #ffffff;
+}
+
+.create-variant-btn.active {
+  border-color: #3692e7;
+  background: #2b2824;
+  color: #ffffff;
+  box-shadow: 0 0 0 1px #3692e7;
+}
+
+.create-variant-text {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.create-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Widgets Row (Friends & Guide) */
+.play-hub-widgets-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .play-hub-widgets-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hub-widget-card {
+  background: #262421;
+  border: 1px solid #36332e;
+  border-radius: 4px;
+  padding: 1rem 1.25rem;
+}
+
+.widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.widget-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.widget-title-row h4 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.widget-friend-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #2b2824;
+}
+
+.widget-friend-item:last-child {
+  border-bottom: none;
+}
+
+.widget-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rule-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: #bababa;
+}
+
+.rule-bullet-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #161512;
+  border: 1px solid #36332e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #df6a15;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
 
 

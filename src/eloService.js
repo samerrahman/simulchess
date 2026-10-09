@@ -290,7 +290,7 @@ function appendLocalRatingHistory(userId, point) {
  * Records rating progression points in database and localStorage.
  */
 export async function recordMatchOutcome(whiteUserId, blackUserId, winnerStatus) {
-  if (!whiteUserId || !blackUserId) return null;
+  if (!whiteUserId || !blackUserId || whiteUserId === 'bot' || blackUserId === 'bot') return null;
 
   try {
     // 1 for White win, 0 for Black win, 0.5 for draw

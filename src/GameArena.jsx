@@ -31,6 +31,7 @@ import {
 } from './gameLogic';
 import { recordMatchOutcome, calculateEloDelta } from './eloService';
 import { sounds } from './soundEffects';
+import { getBotMove } from './botEngine';
 
 const EMOJIS = ['👏', '😮', '💀', '🔥', '🤔', '🤝'];
 
@@ -349,6 +350,31 @@ export default function GameArena(props) {
       return () => clearTimeout(previewTimer);
     }
   }, [gameState, myColor, roomId, eloResult]);
+
+  // Automated bot move submission if opponent is a computer engine
+  useEffect(() => {
+    if (!gameState || gameState.status !== 'playing' || !roomId || myColor !== 'w') return;
+    const isBot = Boolean(gameState.isBot || gameState.playerMeta?.b?.isBot);
+    if (!isBot || gameState.submitted?.b) return;
+
+    const botTimer = setTimeout(async () => {
+      const botMove = getBotMove(
+        gameState.board,
+        'b',
+        gameState.castlingRights,
+        gameState.enPassantTarget,
+        gameState.variant || 'standard'
+      );
+      if (botMove) {
+        await update(ref(db, `games/${roomId}`), {
+          [`pendingMoves/b`]: botMove,
+          [`submitted/b`]: true
+        });
+      }
+    }, 650);
+
+    return () => clearTimeout(botTimer);
+  }, [gameState, myColor, roomId]);
 
   // Immediately lock in move on piece placement
   async function handleMovePiece(move) {

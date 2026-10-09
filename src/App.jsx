@@ -20,7 +20,8 @@ import {
   Zap,
   Flame,
   Radio,
-  BookOpen
+  BookOpen,
+  Bot
 } from 'lucide-react';
 import GameArena from './GameArena';
 import HowToPlayModal from './HowToPlayModal';
@@ -41,10 +42,12 @@ import {
   onValue, 
   remove, 
   push, 
-  onDisconnect 
+  onDisconnect,
+  query,
+  limitToLast
 } from 'firebase/database';
 import { createInitialGameState, VARIANTS } from './gameLogic';
-import { getOrCreateProfile, updateUsername } from './eloService';
+import { getOrCreateProfile, updateUsername, getTopLeaderboard } from './eloService';
 import { 
   setupUserPresence, 
   setUserGameStatus, 
@@ -99,15 +102,12 @@ export default function App() {
   // Navigation: 'play' | 'profile' | 'settings'
   const [navTab, setNavTab] = useState('play');
 
-  // UI Design Style: 'handcrafted' | 'modern'
-  const [uiStyle, setUiStyle] = useState(() => {
-    return localStorage.getItem('simulchess_ui_style') || 'handcrafted';
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-ui-style', uiStyle);
-    localStorage.setItem('simulchess_ui_style', uiStyle);
-  }, [uiStyle]);
+  // Lobby Sub-tab: 'quick' | 'lobby' | 'leaderboard'
+  const [lobbyTab, setLobbyTab] = useState('quick');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createModalVariant, setCreateModalVariant] = useState('standard');
+  const [lobbyRooms, setLobbyRooms] = useState([]);
+  const [topLeadersPreview, setTopLeadersPreview] = useState([]);
 
   // Game variant: 'standard' | 'skirmish'
   const [selectedVariant, setSelectedVariant] = useState('standard');
@@ -476,8 +476,11 @@ export default function App() {
   }, [queueKey, queuedRoomId]);
 
   // Execute Public Matchmaking
-  const executeFindPublic = useCallback(async (customProf = null) => {
+  const executeFindPublic = useCallback(async (customProf = null, forcedVariant = null) => {
+    const activeVariant = forcedVariant || selectedVariant;
+    setSelectedVariant(activeVariant);
     setIsSearchingMatch(true);
+    setQueueSeconds(0);
     setErrorMsg('');
 
     try {
@@ -486,7 +489,6 @@ export default function App() {
       const activeProf = customProf || profile;
       const myName = activeProf?.username || `Guest_${userId.slice(-4).toUpperCase()}`;
       const myElo = activeProf?.elo || 1200;
-      const activeVariant = selectedVariant;
 
       const queueRef = ref(db, 'queue');
       const snap = await get(queueRef);
@@ -576,12 +578,14 @@ export default function App() {
   }, [userId, profile, selectedVariant]);
 
   // Execute Private Room Creation
-  const executeCreatePrivate = useCallback(async (customProf = null) => {
+  const executeCreatePrivate = useCallback(async (customProf = null, forcedVariant = null) => {
+    const activeVariant = forcedVariant || selectedVariant;
+    setSelectedVariant(activeVariant);
     setLoadingMsg("Creating room...");
     setErrorMsg('');
     try {
       const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const initialGame = createInitialGameState(selectedVariant);
+      const initialGame = createInitialGameState(activeVariant);
       const activeProf = customProf || profile;
       const myName = activeProf?.username || `Guest_${userId.slice(-4).toUpperCase()}`;
       const myElo = activeProf?.elo || 1200;
@@ -592,7 +596,12 @@ export default function App() {
         b: null
       };
       initialGame.status = 'waiting';
-      initialGame.variant = selectedVariant;
+      initialGame.variant = activeVariant;
+      initialGame.timer = {
+        enabled: true,
+        turnLimit: 60,
+        banks: { w: 150, b: 150 }
+      };
 
       await set(ref(db, `games/${newRoomId}`), initialGame);
       setColor('w');
@@ -606,27 +615,112 @@ export default function App() {
     }
   }, [userId, profile, selectedVariant]);
 
-  // Public match button clicked
-  function handleFindPublic() {
-    if (!hasChosenName) {
-      setPendingAction('find_match');
+  // Start instant practice match vs SimulBot
+  const handlePlayBot = useCallback(async (variant = selectedVariant) => {
+    setSelectedVariant(variant);
+    setLoadingMsg("Starting bot match...");
+    setErrorMsg('');
+    try {
+      const newRoomId = 'BOT-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+      const initialGame = createInitialGameState(variant);
+      const myName = profile?.username || `Player_${userId.slice(-4).toUpperCase()}`;
+      const myElo = profile?.elo || 1200;
+
+      initialGame.players = { w: userId, b: 'BOT_SIMUL' };
+      initialGame.playerMeta = {
+        w: { userId, username: myName, elo: myElo },
+        b: { userId: 'BOT_SIMUL', username: 'SimulBot (1500)', elo: 1500, isBot: true }
+      };
+      initialGame.status = 'playing';
+      initialGame.variant = variant;
+      initialGame.isBot = true;
+      initialGame.timer = {
+        enabled: true,
+        turnLimit: 60,
+        banks: { w: 150, b: 150 },
+        turnStartedAt: Date.now()
+      };
+
+      await set(ref(db, `games/${newRoomId}`), initialGame);
+      setColor('w');
+      setRoomId(newRoomId);
+      window.history.pushState({ inGame: true, roomId: newRoomId }, '', `?room=${newRoomId}`);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Failed to start bot match: " + err.message);
+    } finally {
+      setLoadingMsg('');
+    }
+  }, [userId, profile, selectedVariant]);
+
+  // Quick pairing trigger from Lichess grid
+  const handleQuickPair = useCallback((variant = 'standard', isRated = true) => {
+    setSelectedVariant(variant);
+    if (!hasChosenName && isRated) {
+      setPendingAction({ type: 'find_match', variant });
       setAuthModalMode('choose_name');
       setShowAuthModal(true);
       return;
     }
-    executeFindPublic();
+    executeFindPublic(null, variant);
+  }, [hasChosenName, executeFindPublic]);
+
+  // Public match button clicked
+  function handleFindPublic(variant = selectedVariant) {
+    if (!hasChosenName) {
+      setPendingAction({ type: 'find_match', variant });
+      setAuthModalMode('choose_name');
+      setShowAuthModal(true);
+      return;
+    }
+    executeFindPublic(null, variant);
   }
 
   // Create private room button clicked
-  function handleCreatePrivate() {
+  function handleCreatePrivate(variant = selectedVariant) {
     if (!hasChosenName) {
-      setPendingAction('create_room');
+      setPendingAction({ type: 'create_room', variant });
       setAuthModalMode('choose_name');
       setShowAuthModal(true);
       return;
     }
-    executeCreatePrivate();
+    executeCreatePrivate(null, variant);
   }
+
+  // Listen to lobby rooms and fetch leaderboard preview when lobbyTab changes
+  useEffect(() => {
+    if (navTab !== 'play') return;
+    if (lobbyTab === 'lobby') {
+      const gamesRef = query(ref(db, 'games'), limitToLast(25));
+      const unsub = onValue(gamesRef, (snapshot) => {
+        const data = snapshot.val();
+        if (!data) {
+          setLobbyRooms([]);
+          return;
+        }
+        const rooms = Object.entries(data)
+          .map(([id, game]) => ({
+            id,
+            variant: game.variant || 'standard',
+            status: game.status || 'waiting',
+            isBot: Boolean(game.isBot),
+            playerW: game.playerMeta?.w?.username || 'Player 1',
+            playerWElo: game.playerMeta?.w?.elo || 1200,
+            playerB: game.playerMeta?.b?.username || (game.status === 'waiting' ? 'Waiting...' : 'Player 2'),
+            playerBElo: game.playerMeta?.b?.elo || 1200,
+            turnCount: game.turnCount || 1,
+          }))
+          .filter(r => !r.isBot)
+          .reverse();
+        setLobbyRooms(rooms);
+      });
+      return () => unsub();
+    } else if (lobbyTab === 'leaderboard') {
+      getTopLeaderboard().then(data => {
+        setTopLeadersPreview((data || []).slice(0, 10));
+      }).catch(console.error);
+    }
+  }, [navTab, lobbyTab]);
 
   // Join Room from input form
   function handleJoinSubmit(e) {
@@ -650,18 +744,20 @@ export default function App() {
     setProfile(updated);
     setShowAuthModal(false);
 
-    if (pendingAction === 'find_match') {
+    if (pendingAction === 'find_match' || pendingAction?.type === 'find_match') {
+      const v = pendingAction?.variant || selectedVariant;
       setPendingAction(null);
-      executeFindPublic(updated);
-    } else if (pendingAction === 'create_room') {
+      executeFindPublic(updated, v);
+    } else if (pendingAction === 'create_room' || pendingAction?.type === 'create_room') {
+      const v = pendingAction?.variant || selectedVariant;
       setPendingAction(null);
-      executeCreatePrivate(updated);
+      executeCreatePrivate(updated, v);
     } else if (pendingAction?.type === 'join_room') {
       const targetRoom = pendingAction.roomId;
       setPendingAction(null);
       joinRoomById(targetRoom, true);
     }
-  }, [userId, authUser, pendingAction, executeFindPublic, executeCreatePrivate, joinRoomById]);
+  }, [userId, authUser, pendingAction, executeFindPublic, executeCreatePrivate, joinRoomById, selectedVariant]);
 
   // Handle successful auth or logout
   const handleAuthSuccess = useCallback(async (user) => {
@@ -676,18 +772,20 @@ export default function App() {
     }
     setShowAuthModal(false);
 
-    if (pendingAction === 'find_match') {
+    if (pendingAction === 'find_match' || pendingAction?.type === 'find_match') {
+      const v = pendingAction?.variant || selectedVariant;
       setPendingAction(null);
-      executeFindPublic();
-    } else if (pendingAction === 'create_room') {
+      executeFindPublic(null, v);
+    } else if (pendingAction === 'create_room' || pendingAction?.type === 'create_room') {
+      const v = pendingAction?.variant || selectedVariant;
       setPendingAction(null);
-      executeCreatePrivate();
+      executeCreatePrivate(null, v);
     } else if (pendingAction?.type === 'join_room') {
       const targetRoom = pendingAction.roomId;
       setPendingAction(null);
       joinRoomById(targetRoom, true);
     }
-  }, [anonUserId, pendingAction, executeFindPublic, executeCreatePrivate, joinRoomById]);
+  }, [anonUserId, pendingAction, executeFindPublic, executeCreatePrivate, joinRoomById, selectedVariant]);
 
   // Log out user
   const handleLogout = useCallback(async () => {
@@ -822,14 +920,13 @@ export default function App() {
           <div 
             className="site-brand" 
             onClick={() => setNavTab('play')}
-            title="SimulChess Home"
+            title="simulchess.online"
           >
             <div className="brand-logo-icon">
-              <Swords size={22} className="logo-swords" />
+              <Swords size={20} className="logo-swords" />
             </div>
             <div className="brand-text-block">
-              <span className="brand-title">SimulChess</span>
-              <span className="brand-badge">Simultaneous 1v1</span>
+              <span className="brand-title">simulchess.online</span>
             </div>
           </div>
 
@@ -838,43 +935,38 @@ export default function App() {
               className={`nav-link-btn ${navTab === 'play' ? 'active' : ''}`}
               onClick={() => setNavTab('play')}
             >
-              <Play size={16} />
-              <span>Play</span>
+              <span>PLAY</span>
             </button>
 
             <button 
               className={`nav-link-btn ${navTab === 'leaderboard' ? 'active' : ''}`}
               onClick={() => setNavTab('leaderboard')}
             >
-              <Trophy size={16} className="text-amber" />
-              <span>Leaderboard</span>
+              <span>LEADERBOARD</span>
             </button>
 
             <button 
               className={`nav-link-btn ${navTab === 'friends' ? 'active' : ''}`}
               onClick={() => setNavTab('friends')}
             >
-              <Users size={16} />
-              <span>Friends</span>
-              {friendsList.length > 0 && (
+              <span>FRIENDS</span>
+              {onlineFriendsCount > 0 && (
                 <span className="nav-badge-pill">{onlineFriendsCount}</span>
               )}
             </button>
 
             <button 
-              className={`nav-link-btn ${navTab === 'profile' ? 'active' : ''}`}
-              onClick={() => setNavTab('profile')}
+              className="nav-link-btn"
+              onClick={() => setShowHowToPlay(true)}
             >
-              <User size={16} />
-              <span>Profile</span>
+              <span>RULES</span>
             </button>
 
             <button 
               className={`nav-link-btn ${navTab === 'settings' ? 'active' : ''}`}
               onClick={() => setNavTab('settings')}
             >
-              <Sliders size={16} />
-              <span>Settings</span>
+              <span>SETTINGS</span>
             </button>
           </nav>
         </div>
@@ -884,46 +976,46 @@ export default function App() {
             <div 
               className="navbar-user-pill"
               onClick={() => setNavTab('profile')}
-              title="View your profile, Elo, and stats"
+              title="View your profile"
             >
               <div className="nav-user-avatar">
-                <User size={15} />
+                <User size={14} />
               </div>
               <span className="nav-user-name">{profile.username}</span>
               <span className="nav-user-elo">{profile.elo || 1200}</span>
               {authUser ? (
                 <span className="badge-registered-tag" title="Verified Account">✓</span>
-              ) : (
-                <span className="nav-guest-tag">Guest</span>
-              )}
+              ) : null}
             </div>
           ) : (
-            <button 
-              className="btn btn-primary btn-sm btn-choose-name-top"
-              onClick={() => {
-                setAuthModalMode('choose_name');
-                setShowAuthModal(true);
-              }}
-            >
-              <Sparkles size={15} />
-              <span>Choose Name</span>
-            </button>
+            <div className="nav-auth-actions">
+              <button 
+                className="nav-ghost-btn"
+                onClick={() => {
+                  setAuthModalMode('login');
+                  setShowAuthModal(true);
+                }}
+              >
+                SIGN IN
+              </button>
+              <button 
+                className="btn btn-primary btn-sm btn-choose-name-top"
+                onClick={() => {
+                  setAuthModalMode('choose_name');
+                  setShowAuthModal(true);
+                }}
+              >
+                <span>CHOOSE NAME</span>
+              </button>
+            </div>
           )}
 
           <button 
-            className="btn btn-secondary btn-xs ui-style-toggle-btn"
-            onClick={() => setUiStyle(s => s === 'handcrafted' ? 'modern' : 'handcrafted')}
-            title={uiStyle === 'handcrafted' ? 'Active: Hand-crafted style. Click to switch to Modern.' : 'Active: Modern style. Click to switch to Hand-crafted.'}
-          >
-            {uiStyle === 'handcrafted' ? '🎨 Hand-crafted' : '✨ Modern Look'}
-          </button>
-
-          <button 
             className="btn-icon nav-help-btn"
-            onClick={() => setShowHowToPlay(true)}
-            title="How to Play SimulChess"
+            onClick={() => setNavTab('settings')}
+            title="Settings & Board Themes"
           >
-            <HelpCircle size={18} />
+            <Sliders size={18} />
           </button>
         </div>
       </header>
@@ -979,31 +1071,14 @@ export default function App() {
 
         {/* VIEW: PLAY (MAIN HUB) */}
         {navTab === 'play' && (
-          <div className="play-hub-container">
-            {/* MATCHMAKING QUEUE BANNER (When searching for opponent) */}
-            {isSearchingMatch && (
-              <div className="queue-active-banner">
-                <div className="queue-status-left">
-                  <div className="queue-radar-ring">
-                    <Radio size={20} className="radar-icon-pulse" />
-                  </div>
-                  <div className="queue-status-text">
-                    <span className="queue-status-title">Searching for an opponent...</span>
-                    <span className="queue-status-sub">
-                      Rated 1v1 Simultaneous Chess • In queue: <strong>{Math.floor(queueSeconds / 60)}:{String(queueSeconds % 60).padStart(2, '0')}</strong>
-                    </span>
-                  </div>
-                </div>
-                <button 
-                  className="btn btn-secondary btn-sm btn-cancel-queue-hero"
-                  onClick={handleCancelMatchmaking}
-                >
-                  Cancel Search
-                </button>
+          <div className="play-hub-container lichess-container">
+            {/* Status alerts */}
+            {loadingMsg && (
+              <div className="alert-box alert-info alert-hub-info" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', background: '#262421', border: '1px solid #36332e', color: 'var(--accent-blue)', padding: '0.6rem 1rem', borderRadius: '4px' }}>
+                <Loader2 size={16} className="animate-spin" />
+                <span>{loadingMsg}</span>
               </div>
             )}
-
-            {/* Error alerts */}
             {errorMsg && (
               <div className="alert-box alert-error alert-hub-error">
                 <AlertCircle size={16} />
@@ -1011,150 +1086,329 @@ export default function App() {
               </div>
             )}
 
-            {/* Hero Section */}
-            <div className="play-hero-section">
-              <div className="hero-text-col">
-                <h1 className="hero-headline">
-                  Chess. But real time.
-                </h1>
-                <p className="hero-subhead">
-                  Moves resolve simultaneously each turn — bringing new strategies, mutual collisions, and counter-ambushes.
-                </p>
-              </div>
-
-              {!hasChosenName ? (
-                <div className="hero-cta-card">
-                  <Sparkles size={20} className="text-amber" />
-                  <h3>Pick a Name</h3>
-                  <p>Choose a username to play rated matches and track your rating.</p>
+            {/* Main Lichess 2-Column Split */}
+            <div className="lichess-lobby">
+              {/* Left Sidebar */}
+              <div className="lichess-sidebar">
+                <div className="lichess-action-stack">
                   <button 
-                    className="btn btn-primary btn-full"
+                    type="button"
+                    className="lichess-sidebar-btn"
+                    onClick={() => setShowCreateModal(true)}
+                  >
+                    <div className="lichess-btn-icon-wrap">
+                      <Users size={22} />
+                    </div>
+                    <span className="lichess-btn-label">Create a game</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    className="lichess-sidebar-btn"
                     onClick={() => {
-                      setAuthModalMode('choose_name');
-                      setShowAuthModal(true);
+                      if (!hasChosenName) {
+                        setAuthModalMode('choose_name');
+                        setShowAuthModal(true);
+                      } else {
+                        setShowFriendsModal(true);
+                      }
                     }}
                   >
-                    <span>Choose Name</span>
-                    <ArrowRight size={15} />
+                    <div className="lichess-btn-icon-wrap">
+                      <User size={22} />
+                    </div>
+                    <span className="lichess-btn-label">Challenge a friend</span>
                   </button>
-                </div>
-              ) : null}
-            </div>
 
-            {/* Game Variant Selector */}
-            <div className="variant-selection-card">
-              <div className="variant-header-row">
-                <span className="variant-title-label">Game Mode</span>
-                <span className="variant-active-badge">
-                  {selectedVariant === 'skirmish' ? '6x6 Skirmish' : 'Standard 8x8'}
-                </span>
-              </div>
-              <div className="variant-buttons-row">
-                <button
-                  type="button"
-                  className={`variant-toggle-btn ${selectedVariant === 'standard' ? 'active' : ''}`}
-                  onClick={() => setSelectedVariant('standard')}
-                >
-                  <PlayfieldGraphic size={8} />
-                  <span className="variant-name">Standard (8x8)</span>
-                </button>
-                <button
-                  type="button"
-                  className={`variant-toggle-btn ${selectedVariant === 'skirmish' ? 'active' : ''}`}
-                  onClick={() => setSelectedVariant('skirmish')}
-                >
-                  <PlayfieldGraphic size={6} />
-                  <span className="variant-name">Skirmish (6x6)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Game Modes Grid */}
-            <div className="game-modes-grid">
-              {/* Card 1: Find Match */}
-              <div className={`mode-card mode-card-highlighted ${isSearchingMatch ? 'mode-card-searching' : ''}`}>
-                <div className="mode-card-header">
-                  <div className="mode-icon-box mode-icon-primary">
-                    <Play size={24} />
-                  </div>
-                  <span className="mode-badge-pill">Rated 1v1</span>
-                </div>
-                <h3 className="mode-title">Find Match</h3>
-                <p className="mode-desc">
-                  Rated matchmaking against a live opponent.
-                </p>
-                <button 
-                  className={`btn ${isSearchingMatch ? 'btn-secondary' : 'btn-primary'} btn-full btn-mode-action`}
-                  onClick={isSearchingMatch ? handleCancelMatchmaking : handleFindPublic}
-                  disabled={!!loadingMsg}
-                >
-                  {isSearchingMatch ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>Searching ({queueSeconds}s)... Cancel?</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play size={16} />
-                      <span>Find Match</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Card 2: Create Private Room */}
-              <div className="mode-card">
-                <div className="mode-card-header">
-                  <div className="mode-icon-box mode-icon-secondary">
-                    <Users size={24} />
-                  </div>
-                  <span className="mode-badge-pill">Custom Game</span>
-                </div>
-                <h3 className="mode-title">Create Room</h3>
-                <p className="mode-desc">
-                  Create a private game and invite a friend.
-                </p>
-                <button 
-                  className="btn btn-secondary btn-full btn-mode-action"
-                  onClick={handleCreatePrivate}
-                  disabled={isSearchingMatch || !!loadingMsg}
-                >
-                  <Users size={16} />
-                  <span>Create Room</span>
-                </button>
-              </div>
-
-              {/* Card 3: Join with Code */}
-              <div className="mode-card">
-                <div className="mode-card-header">
-                  <div className="mode-icon-box mode-icon-tertiary">
-                    <ArrowRight size={24} />
-                  </div>
-                  <span className="mode-badge-pill">Join Code</span>
-                </div>
-                <h3 className="mode-title">Join with Code</h3>
-                <p className="mode-desc">
-                  Enter a room code to join a private game.
-                </p>
-                <form onSubmit={handleJoinSubmit} className="mode-join-form">
-                  <input
-                    type="text"
-                    className="input-field mode-code-input"
-                    placeholder="Room Code"
-                    maxLength={8}
-                    value={inputRoomId}
-                    onChange={(e) => setInputRoomId(e.target.value.toUpperCase())}
-                    disabled={isSearchingMatch}
-                  />
                   <button 
-                    type="submit" 
-                    className="btn btn-primary btn-full btn-mode-action"
-                    disabled={!inputRoomId.trim() || isSearchingMatch}
+                    type="button"
+                    className="lichess-sidebar-btn"
+                    onClick={() => handlePlayBot(selectedVariant)}
                   >
-                    <span>Join Room</span>
-                    <ArrowRight size={16} />
+                    <div className="lichess-btn-icon-wrap">
+                      <Bot size={22} />
+                    </div>
+                    <span className="lichess-btn-label">Play against computer</span>
                   </button>
-                </form>
+                </div>
+
+                {/* Live stats */}
+                <div className="lichess-sidebar-stats">
+                  <span className="stat-highlight">1,482</span> players
+                  <span className="stat-sep">•</span>
+                  <span className="stat-highlight">419</span> games in play
+                </div>
+
+                {/* Quick Join by Code */}
+                <div className="lichess-quick-join-box">
+                  <form onSubmit={handleJoinSubmit} className="lichess-code-form">
+                    <input 
+                      type="text"
+                      className="lichess-code-input"
+                      placeholder="Room Code"
+                      maxLength={8}
+                      value={inputRoomId}
+                      onChange={(e) => setInputRoomId(e.target.value.toUpperCase())}
+                      disabled={isSearchingMatch}
+                    />
+                    <button 
+                      type="submit"
+                      className="lichess-code-btn"
+                      disabled={!inputRoomId.trim() || isSearchingMatch}
+                    >
+                      Join
+                    </button>
+                  </form>
+                </div>
+
+                {/* Mission / Footer statement */}
+                <div className="lichess-sidebar-footer">
+                  <p>
+                    SimulChess is a real-time simultaneous chess platform. Free, open-source, no ads.
+                  </p>
+                </div>
+              </div>
+
+              {/* Right Main Column */}
+              <div className="lichess-main-col">
+                {/* Tabs Row */}
+                <div className="lichess-tabs-nav">
+                  <button 
+                    type="button"
+                    className={`lichess-tab-nav-btn ${lobbyTab === 'quick' ? 'active' : ''}`}
+                    onClick={() => setLobbyTab('quick')}
+                  >
+                    Quick pairing
+                  </button>
+                  <button 
+                    type="button"
+                    className={`lichess-tab-nav-btn ${lobbyTab === 'lobby' ? 'active' : ''}`}
+                    onClick={() => setLobbyTab('lobby')}
+                  >
+                    Lobby {lobbyRooms.length > 0 && <span className="tab-count-badge">({lobbyRooms.length})</span>}
+                  </button>
+                  <button 
+                    type="button"
+                    className={`lichess-tab-nav-btn ${lobbyTab === 'leaderboard' ? 'active' : ''}`}
+                    onClick={() => setLobbyTab('leaderboard')}
+                  >
+                    Leaderboard
+                  </button>
+                </div>
+
+                {/* Tab 1: Quick Pairing Grid */}
+                {lobbyTab === 'quick' && (
+                  <div className="lichess-quick-wrapper">
+                    {/* Radar overlay when searching */}
+                    {isSearchingMatch ? (
+                      <div className="lichess-queue-overlay">
+                        <div className="lichess-radar-spinner">
+                          <div className="radar-circle radar-c1" />
+                          <div className="radar-circle radar-c2" />
+                          <div className="radar-circle radar-c3" />
+                          <Radio size={36} className="radar-core-icon" />
+                        </div>
+                        <h3 className="queue-headline">Waiting for opponent...</h3>
+                        <p className="queue-detail">
+                          {selectedVariant === 'skirmish' ? '6×6 Skirmish' : '8×8 Standard'} • Rated Match
+                        </p>
+                        <p className="queue-timer-clock">
+                          Elapsed: {Math.floor(queueSeconds / 60)}:{String(queueSeconds % 60).padStart(2, '0')}
+                        </p>
+                        <button 
+                          type="button"
+                          className="btn btn-secondary btn-cancel-queue-lichess"
+                          onClick={handleCancelMatchmaking}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="lichess-quick-grid">
+                        {/* Tile 1: 8x8 Standard Rated */}
+                        <button 
+                          type="button"
+                          className="quick-tile"
+                          onClick={() => handleQuickPair('standard', true)}
+                        >
+                          <div className="tile-primary-text">8×8 Standard</div>
+                          <div className="tile-sub-text">Rated • 150s bank</div>
+                        </button>
+
+                        {/* Tile 2: 8x8 Casual */}
+                        <button 
+                          type="button"
+                          className="quick-tile"
+                          onClick={() => handleQuickPair('standard', false)}
+                        >
+                          <div className="tile-primary-text">8×8 Casual</div>
+                          <div className="tile-sub-text">Casual match</div>
+                        </button>
+
+                        {/* Tile 3: 6x6 Skirmish Rated */}
+                        <button 
+                          type="button"
+                          className="quick-tile"
+                          onClick={() => handleQuickPair('skirmish', true)}
+                        >
+                          <div className="tile-primary-text">6×6 Skirmish</div>
+                          <div className="tile-sub-text">Rated • 150s bank</div>
+                        </button>
+
+                        {/* Tile 4: 6x6 Skirmish Casual */}
+                        <button 
+                          type="button"
+                          className="quick-tile"
+                          onClick={() => handleQuickPair('skirmish', false)}
+                        >
+                          <div className="tile-primary-text">6×6 Casual</div>
+                          <div className="tile-sub-text">Fast skirmish</div>
+                        </button>
+
+                        {/* Tile 5: Bot 8x8 */}
+                        <button 
+                          type="button"
+                          className="quick-tile"
+                          onClick={() => handlePlayBot('standard')}
+                        >
+                          <div className="tile-primary-text">vs Computer</div>
+                          <div className="tile-sub-text">8×8 Practice</div>
+                        </button>
+
+                        {/* Tile 6: Bot 6x6 */}
+                        <button 
+                          type="button"
+                          className="quick-tile"
+                          onClick={() => handlePlayBot('skirmish')}
+                        >
+                          <div className="tile-primary-text">vs Computer</div>
+                          <div className="tile-sub-text">6×6 Practice</div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tab 2: Lobby Table */}
+                {lobbyTab === 'lobby' && (
+                  <div className="lichess-lobby-view">
+                    <div className="lobby-table-header-bar">
+                      <span className="lobby-table-title">Open Game Rooms</span>
+                      <button 
+                        type="button"
+                        className="btn btn-primary btn-xs"
+                        onClick={() => setShowCreateModal(true)}
+                      >
+                        + Create Room
+                      </button>
+                    </div>
+
+                    {lobbyRooms.length === 0 ? (
+                      <div className="lobby-empty-placeholder">
+                        <p>No open public rooms waiting right now.</p>
+                        <button 
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setShowCreateModal(true)}
+                        >
+                          Create a Room
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="lobby-table-container">
+                        <table className="lichess-table">
+                          <thead>
+                            <tr>
+                              <th>Player</th>
+                              <th>Rating</th>
+                              <th>Mode</th>
+                              <th>Status</th>
+                              <th style={{ textAlign: 'right' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lobbyRooms.map((r) => (
+                              <tr key={r.id}>
+                                <td>
+                                  <strong>{r.playerW}</strong>
+                                  {r.status === 'playing' && <span className="vs-sep"> vs {r.playerB}</span>}
+                                </td>
+                                <td>{r.playerWElo}</td>
+                                <td>
+                                  <span className="badge-variant">
+                                    {r.variant === 'skirmish' ? '6×6 Skirmish' : '8×8 Standard'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={`status-pill status-${r.status}`}>
+                                    {r.status === 'waiting' ? 'Waiting' : `Turn ${r.turnCount}`}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {r.status === 'waiting' ? (
+                                    <button 
+                                      type="button"
+                                      className="btn btn-primary btn-xs"
+                                      onClick={() => joinRoomById(r.id, true)}
+                                    >
+                                      Join
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      type="button"
+                                      className="btn btn-secondary btn-xs"
+                                      onClick={() => joinRoomById(r.id, false)}
+                                    >
+                                      Spectate
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tab 3: Leaderboard Preview */}
+                {lobbyTab === 'leaderboard' && (
+                  <div className="lichess-leaderboard-view">
+                    <div className="lobby-table-header-bar">
+                      <span className="lobby-table-title">Top Players</span>
+                      <button 
+                        type="button"
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => setNavTab('leaderboard')}
+                      >
+                        Full Leaderboard →
+                      </button>
+                    </div>
+                    <div className="lobby-table-container">
+                      <table className="lichess-table">
+                        <thead>
+                          <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Rating</th>
+                            <th>Wins / Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topLeadersPreview.map((leader, idx) => (
+                            <tr key={leader.id || idx}>
+                              <td><strong>#{idx + 1}</strong></td>
+                              <td>{leader.username}</td>
+                              <td><strong style={{ color: 'var(--text-bright)' }}>{leader.elo || 1200}</strong></td>
+                              <td>{leader.wins || 0} / {leader.gamesPlayed || 0}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1168,6 +1422,7 @@ export default function App() {
                     <h4>Friends Online</h4>
                   </div>
                   <button 
+                    type="button"
                     className="auth-link-btn"
                     onClick={() => {
                       if (!hasChosenName) {
@@ -1196,6 +1451,7 @@ export default function App() {
                           <span className="widget-friend-elo">({f.elo} Elo)</span>
                         </div>
                         <button 
+                          type="button"
                           className="btn btn-primary btn-xs"
                           onClick={() => handleChallengeFriend(f)}
                           disabled={!f.isOnline}
@@ -1216,6 +1472,7 @@ export default function App() {
                     <h4>Key Mechanics</h4>
                   </div>
                   <button 
+                    type="button"
                     className="auth-link-btn"
                     onClick={() => setShowHowToPlay(true)}
                   >
@@ -1278,6 +1535,85 @@ export default function App() {
         onAuthSuccess={handleAuthSuccess}
         onChooseUnregisteredName={handleChooseUnregisteredName}
       />
+
+      {/* Create Game Modal */}
+      {showCreateModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content lichess-create-modal">
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontWeight: 700 }}>Create a game</h3>
+              <button 
+                type="button"
+                className="modal-close-btn" 
+                onClick={() => setShowCreateModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="create-modal-section">
+                <label className="create-section-label">Variant</label>
+                <div className="create-variant-row">
+                  <button 
+                    type="button"
+                    className={`create-variant-btn ${createModalVariant === 'standard' ? 'active' : ''}`}
+                    onClick={() => setCreateModalVariant('standard')}
+                  >
+                    <PlayfieldGraphic size={8} />
+                    <span className="create-variant-text">Standard (8×8)</span>
+                  </button>
+                  <button 
+                    type="button"
+                    className={`create-variant-btn ${createModalVariant === 'skirmish' ? 'active' : ''}`}
+                    onClick={() => setCreateModalVariant('skirmish')}
+                  >
+                    <PlayfieldGraphic size={6} />
+                    <span className="create-variant-text">Skirmish (6×6)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="create-modal-actions">
+                <button 
+                  type="button"
+                  className="btn btn-primary btn-full"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    handleFindPublic(createModalVariant);
+                  }}
+                >
+                  <Play size={16} />
+                  <span>Public Matchmaking (Rated)</span>
+                </button>
+
+                <button 
+                  type="button"
+                  className="btn btn-secondary btn-full"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    handleCreatePrivate(createModalVariant);
+                  }}
+                >
+                  <Users size={16} />
+                  <span>Create Private Room (Invite Friend)</span>
+                </button>
+
+                <button 
+                  type="button"
+                  className="btn btn-secondary btn-full"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    handlePlayBot(createModalVariant);
+                  }}
+                >
+                  <Bot size={16} />
+                  <span>Play vs Computer</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Incoming Match Challenge Popup */}
       {incomingChallenge && (
