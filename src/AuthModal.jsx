@@ -89,6 +89,37 @@ export default function AuthModal({
     }
   }
 
+function formatAuthErrorMessage(err, fallback = 'Authentication failed.') {
+  if (!err) return fallback;
+  const code = err.code || '';
+  if (code === 'auth/configuration-not-found') {
+    return 'Authentication provider was just enabled. Please try again.';
+  }
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+    return 'Incorrect username or password.';
+  }
+  if (code === 'auth/email-already-in-use') {
+    return 'An account with this username already exists.';
+  }
+  if (code === 'auth/weak-password') {
+    return 'Password is too weak. Please use at least 6 characters.';
+  }
+  if (code === 'auth/operation-not-allowed') {
+    return 'Email/password sign-in is currently unavailable.';
+  }
+  if (code === 'auth/network-request-failed') {
+    return 'Network connection failed. Please check your internet connection.';
+  }
+  if (code === 'auth/too-many-requests') {
+    return 'Too many attempts. Please try again in a few moments.';
+  }
+  if (err.message) {
+    const cleaned = err.message.replace(/^Firebase:\s*Error\s*\(([^)]+)\)\.?/i, '').trim();
+    if (cleaned) return cleaned;
+  }
+  return fallback;
+}
+
   // Handle Login with Password for registered username
   async function handleLoginSubmit(e) {
     e.preventDefault();
@@ -101,11 +132,7 @@ export default function AuthModal({
       onClose();
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-        setError('Incorrect password for this username.');
-      } else {
-        setError(err.message || 'Login failed. Please check your credentials.');
-      }
+      setError(formatAuthErrorMessage(err, 'Login failed. Please check your credentials.'));
     } finally {
       setLoading(false);
     }
@@ -142,13 +169,7 @@ export default function AuthModal({
       onClose();
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/email-already-in-use') {
-        setError('An account with this name or email already exists.');
-      } else if (err.code === 'auth/weak-password') {
-        setError('Password is too weak. Use at least 6 characters.');
-      } else {
-        setError(err.message || 'Registration failed.');
-      }
+      setError(formatAuthErrorMessage(err, 'Registration failed.'));
     } finally {
       setLoading(false);
     }
