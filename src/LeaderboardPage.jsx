@@ -120,7 +120,6 @@ export default function LeaderboardPage({
                   </div>
                   <h3 className="podium-name">{top3[0].username}</h3>
                   <div className="podium-elo">{top3[0].elo} <span>Elo</span></div>
-                  <span className="champion-badge">Current Champion</span>
                 </div>
               )}
 
