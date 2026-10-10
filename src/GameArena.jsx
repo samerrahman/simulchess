@@ -24,7 +24,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Film,
-  X
+  X,
+  User,
+  UserPlus,
+  Eye
 } from 'lucide-react';
 import HowToPlayModal from './HowToPlayModal';
 import { ref, update } from 'firebase/database';
@@ -725,9 +728,27 @@ export default function GameArena(props) {
           <div className={`player-strip opponent-strip ${enemyStatus ? 'player-locked' : ''}`}>
             <div className="player-meta">
               <div className="avatar-wrapper">
-                <div className={`player-avatar avatar-${enemyColor}`}>
-                  {enemyColor === 'w' ? '♔' : '♚'}
-                </div>
+                {isWaiting ? (
+                  <div className="player-avatar avatar-waiting" title="Waiting for opponent to connect">
+                    <UserPlus size={18} className="waiting-pulse-icon" />
+                    <span 
+                      className={`player-color-corner-badge badge-${enemyColor}`} 
+                      title={`Opponent plays ${enemyColor === 'w' ? 'White' : 'Black'}`}
+                    />
+                  </div>
+                ) : (
+                  <div className="player-avatar avatar-opponent" title={opponentDisplayName}>
+                    {opponentMeta?.username ? (
+                      <span className="avatar-initial">{opponentMeta.username.trim()[0].toUpperCase()}</span>
+                    ) : (
+                      <User size={18} />
+                    )}
+                    <span 
+                      className={`player-color-corner-badge badge-${enemyColor}`} 
+                      title={`Playing ${enemyColor === 'w' ? 'White' : 'Black'}`}
+                    />
+                  </div>
+                )}
                 {/* Floating Reaction from Opponent */}
                 {activeReaction && activeReaction.sender === enemyColor && (
                   <div className="floating-reaction-badge">
@@ -739,6 +760,10 @@ export default function GameArena(props) {
                 <div className="player-name-line">
                   <span className="player-name">
                     {opponentDisplayName}
+                  </span>
+                  <span className={`player-side-pill side-${enemyColor}`}>
+                    <span className={`side-indicator-dot dot-${enemyColor}`} />
+                    {enemyColor === 'w' ? 'White' : 'Black'}
                   </span>
                   {opponentElo && (
                     <span className="player-elo-badge">
@@ -858,10 +883,10 @@ export default function GameArena(props) {
                     {currentReviewPos && currentReviewPos.turn > 0 && (
                       <div className="replay-turn-moves">
                         <span className="replay-move-tag white-tag">
-                          <span className="mini-icon">♔</span> {currentReviewPos.whiteMove || '—'}
+                          <span className="side-indicator-dot dot-w" /> {currentReviewPos.whiteMove || '—'}
                         </span>
                         <span className="replay-move-tag black-tag">
-                          <span className="mini-icon">♚</span> {currentReviewPos.blackMove || '—'}
+                          <span className="side-indicator-dot dot-b" /> {currentReviewPos.blackMove || '—'}
                         </span>
                       </div>
                     )}
@@ -964,8 +989,22 @@ export default function GameArena(props) {
           <div className={`player-strip self-strip ${myStatus ? 'player-locked' : ''}`}>
             <div className="player-meta">
               <div className="avatar-wrapper">
-                <div className={`player-avatar avatar-${myColor}`}>
-                  {myColor === 'w' ? '♔' : myColor === 'b' ? '♚' : '👁️'}
+                <div className={`player-avatar ${isSpectator ? 'avatar-spectator' : 'avatar-self'}`} title={myDisplayName}>
+                  {isSpectator ? (
+                    <Eye size={18} />
+                  ) : (
+                    <>
+                      {myDisplayName && myDisplayName !== 'White' && myDisplayName !== 'Black' ? (
+                        <span className="avatar-initial">{myDisplayName.trim()[0].toUpperCase()}</span>
+                      ) : (
+                        <User size={18} />
+                      )}
+                      <span 
+                        className={`player-color-corner-badge badge-${myColor}`} 
+                        title={`Playing ${myColor === 'w' ? 'White' : 'Black'}`}
+                      />
+                    </>
+                  )}
                 </div>
                 {/* Floating Reaction from Self */}
                 {activeReaction && activeReaction.sender === myColor && (
@@ -979,6 +1018,12 @@ export default function GameArena(props) {
                   <span className="player-name">
                     {isSpectator ? 'You (Spectator)' : myDisplayName}
                   </span>
+                  {!isSpectator && (
+                    <span className={`player-side-pill side-${myColor}`}>
+                      <span className={`side-indicator-dot dot-${myColor}`} />
+                      {myColor === 'w' ? 'White' : 'Black'}
+                    </span>
+                  )}
                   {!isSpectator && (
                     <span className="player-elo-badge">
                       {myElo}
@@ -1144,10 +1189,10 @@ export default function GameArena(props) {
                           <span className="turn-number-tag">#{entry.turn}</span>
                           <div className="moves-pair">
                             <span className="history-move white-move">
-                              <span className="mini-icon">♔</span> {entry.whiteMove}
+                              <span className="side-indicator-dot dot-w" /> {entry.whiteMove}
                             </span>
                             <span className="history-move black-move">
-                              <span className="mini-icon">♚</span> {entry.blackMove}
+                              <span className="side-indicator-dot dot-b" /> {entry.blackMove}
                             </span>
                           </div>
                         </div>

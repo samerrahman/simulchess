@@ -746,8 +746,39 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.75rem;
+  font-size: 1.15rem;
+  font-weight: 700;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.avatar-self {
+  background: rgba(99, 102, 241, 0.22);
+  color: #c7d2fe;
+  border: 1.5px solid rgba(129, 140, 248, 0.4);
+}
+
+.avatar-opponent {
+  background: rgba(148, 163, 184, 0.16);
+  color: #f1f5f9;
+  border: 1.5px solid rgba(148, 163, 184, 0.3);
+}
+
+.avatar-waiting {
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  border: 1.5px dashed rgba(255, 255, 255, 0.28);
+}
+
+.waiting-pulse-icon {
+  animation: waitingPulse 2s ease-in-out infinite;
+}
+
+@keyframes waitingPulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
 }
 
 .avatar-w {
@@ -764,6 +795,87 @@ body {
 .avatar-spectator {
   background-color: #334155;
   color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.avatar-initial {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Corner side indicator badge on avatar */
+.player-color-corner-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid #262421;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-color-corner-badge.badge-w {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.player-color-corner-badge.badge-b {
+  background: #18181b;
+  border-color: #524f49;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Side indicator pill next to username */
+.player-name-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.player-side-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.12rem 0.55rem;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.player-side-pill.side-w {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.player-side-pill.side-b {
+  background: rgba(0, 0, 0, 0.45);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.side-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.side-indicator-dot.dot-w {
+  background: #ffffff;
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+.side-indicator-dot.dot-b {
+  background: #18181b;
+  border: 1px solid #71717a;
 }
 
 .player-details {
