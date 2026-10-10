@@ -918,12 +918,6 @@ export default function App() {
               )}
             </button>
 
-            <button 
-              className="nav-link-btn"
-              onClick={() => setShowHowToPlay(true)}
-            >
-              <span>RULES</span>
-            </button>
 
             <button 
               className={`nav-link-btn ${navTab === 'settings' ? 'active' : ''}`}
