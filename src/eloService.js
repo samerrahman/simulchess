@@ -431,13 +431,13 @@ export async function getRatingHistory(userId, currentProfile = null) {
 }
 
 /**
- * Fetches the top 10 rated registered players for the leaderboard.
+ * Fetches the top rated registered players for the leaderboard (default top 50).
  * Anonymous/guest players are excluded.
  */
-export async function getTopLeaderboard() {
+export async function getTopLeaderboard(limit = 50) {
   try {
     const usersRef = ref(db, 'users');
-    const topQuery = query(usersRef, orderByChild('elo'), limitToLast(100));
+    const topQuery = query(usersRef, orderByChild('elo'), limitToLast(300));
     const snap = await get(topQuery);
 
     if (!snap.exists()) return [];
@@ -461,7 +461,7 @@ export async function getTopLeaderboard() {
     });
 
     // RTDB returns limitToLast in ascending order, so reverse for highest first
-    return list.sort((a, b) => b.elo - a.elo).slice(0, 10);
+    return list.sort((a, b) => b.elo - a.elo).slice(0, limit);
   } catch (err) {
     console.error("Failed to load leaderboard:", err);
     return [];

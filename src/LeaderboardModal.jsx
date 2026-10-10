@@ -82,12 +82,11 @@ export default function LeaderboardModal({ isOpen, onClose, currentUserId, curre
                   <tr>
                     <th className="th-rank">#</th>
                     <th className="th-player">Player</th>
-                    <th className="th-elo">Rating</th>
-                    <th className="th-record">W / L / D</th>
+                    <th className="th-elo" style={{ textAlign: 'right' }}>Rating</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {leaders.map((player, idx) => {
+                  {leaders.slice(0, 50).map((player, idx) => {
                     const isMe = player.userId === currentUserId;
                     return (
                       <tr key={player.userId} className={`leader-row ${isMe ? 'leader-row-me' : ''}`}>
@@ -108,17 +107,8 @@ export default function LeaderboardModal({ isOpen, onClose, currentUserId, curre
                             {isMe && <span className="you-pill">YOU</span>}
                           </span>
                         </td>
-                        <td className="td-elo">
+                        <td className="td-elo" style={{ textAlign: 'right' }}>
                           <span className="leader-elo">{player.elo}</span>
-                        </td>
-                        <td className="td-record">
-                          <span className="record-text">
-                            <span className="stat-w">{player.wins}W</span>
-                            {' - '}
-                            <span className="stat-l">{player.losses}L</span>
-                            {' - '}
-                            <span className="stat-d">{player.draws}D</span>
-                          </span>
                         </td>
                       </tr>
                     );

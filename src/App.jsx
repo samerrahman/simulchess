@@ -1320,8 +1320,7 @@ export default function App() {
                           <tr>
                             <th>Rank</th>
                             <th>Player</th>
-                            <th>Rating</th>
-                            <th>Wins / Total</th>
+                            <th style={{ textAlign: 'right' }}>Rating</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1329,8 +1328,7 @@ export default function App() {
                             <tr key={leader.id || idx}>
                               <td><strong>#{idx + 1}</strong></td>
                               <td>{leader.username}</td>
-                              <td><strong style={{ color: 'var(--text-bright)' }}>{leader.elo || 1200}</strong></td>
-                              <td>{leader.wins || 0} / {leader.gamesPlayed || 0}</td>
+                              <td style={{ textAlign: 'right' }}><strong style={{ color: 'var(--text-bright)' }}>{leader.elo || 1200}</strong></td>
                             </tr>
                           ))}
                         </tbody>

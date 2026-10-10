@@ -60,7 +60,7 @@ export default function LeaderboardPage({
           </div>
           <div>
             <h1 className="page-title">Leaderboard</h1>
-            <p className="page-subtitle">Top rated players.</p>
+            <p className="page-subtitle">Top 50 rated players.</p>
           </div>
         </div>
 
@@ -107,9 +107,6 @@ export default function LeaderboardPage({
                   </div>
                   <h3 className="podium-name">{top3[1].username}</h3>
                   <div className="podium-elo">{top3[1].elo} <span>Elo</span></div>
-                  <div className="podium-record">
-                    {top3[1].wins}W • {top3[1].losses}L • {top3[1].draws}D
-                  </div>
                 </div>
               )}
 
@@ -123,9 +120,6 @@ export default function LeaderboardPage({
                   </div>
                   <h3 className="podium-name">{top3[0].username}</h3>
                   <div className="podium-elo">{top3[0].elo} <span>Elo</span></div>
-                  <div className="podium-record">
-                    {top3[0].wins}W • {top3[0].losses}L • {top3[0].draws}D
-                  </div>
                   <span className="champion-badge">Current Champion</span>
                 </div>
               )}
@@ -139,9 +133,6 @@ export default function LeaderboardPage({
                   </div>
                   <h3 className="podium-name">{top3[2].username}</h3>
                   <div className="podium-elo">{top3[2].elo} <span>Elo</span></div>
-                  <div className="podium-record">
-                    {top3[2].wins}W • {top3[2].losses}L • {top3[2].draws}D
-                  </div>
                 </div>
               )}
             </div>
@@ -154,16 +145,12 @@ export default function LeaderboardPage({
                 <tr>
                   <th style={{ width: '80px' }}>Rank</th>
                   <th>Player</th>
-                  <th>Rating</th>
-                  <th>Record (W-L-D)</th>
-                  <th>Win Rate</th>
+                  <th style={{ textAlign: 'right' }}>Rating</th>
                 </tr>
               </thead>
               <tbody>
-                {leaders.map((player, idx) => {
+                {leaders.slice(0, 50).map((player, idx) => {
                   const isCurrent = currentUserId === player.userId;
-                  const total = player.wins + player.losses + player.draws;
-                  const winRate = total > 0 ? Math.round((player.wins / total) * 100) : 0;
                   return (
                     <tr key={player.userId} className={isCurrent ? 'row-current-player' : ''}>
                       <td className="rank-col">
@@ -178,14 +165,8 @@ export default function LeaderboardPage({
                           {isCurrent && <span className="you-pill-tag">You</span>}
                         </div>
                       </td>
-                      <td className="elo-col font-mono font-bold text-amber">
+                      <td className="elo-col font-mono font-bold text-amber" style={{ textAlign: 'right' }}>
                         {player.elo}
-                      </td>
-                      <td className="record-col text-secondary">
-                        {player.wins}W - {player.losses}L - {player.draws}D
-                      </td>
-                      <td className="winrate-col font-bold">
-                        {winRate}%
                       </td>
                     </tr>
                   );
